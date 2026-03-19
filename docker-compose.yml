@@ -1,0 +1,73 @@
+version: "3.8"
+
+services:
+  # ── MariaDB ───────────────────────────────────────────────────
+  mariadb:
+    image: mariadb:11.4
+    container_name: ai-interview-db
+    restart: unless-stopped
+    ports:
+      - "3308:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_PASSWORD:-1234}
+      MARIADB_DATABASE: ai_interview
+      MARIADB_CHARACTER_SET_SERVER: utf8mb4
+      MARIADB_COLLATION_SERVER: utf8mb4_unicode_ci
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Python AI 서버 ────────────────────────────────────────────
+  ai-server:
+    build:
+      context: ./ai-server
+      dockerfile: Dockerfile
+    container_name: ai-interview-ai
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      MODEL_NAME: ${MODEL_NAME:-gpt-4o}
+    env_file:
+      - ./ai-server/.env
+
+  # ── Spring Boot 백엔드 ────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend/ai-interview
+      dockerfile: Dockerfile
+    container_name: ai-interview-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mariadb://mariadb:3306/ai_interview
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-1234}
+      AI_SERVER_URL: http://ai-server:8000
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      ai-server:
+        condition: service_started
+
+  # ── React 프론트엔드 ──────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ai-interview-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  mariadb_data:
