@@ -1,0 +1,17 @@
+# 환경 변수 (API 키 포함 — 절대 커밋하지 말 것)
+.env
+
+# Python 캐시
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# 가상환경
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
