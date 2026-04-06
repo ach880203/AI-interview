@@ -1,111 +1,223 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+/* ─────────────────────────────────────────────────────────────
+   Noto Sans KR (한국어 폰트) — @fontsource NPM 패키지
+   CDN 대신 NPM 패키지 사용 → 오프라인 환경에서도 안정적으로 동작
+   실제 @font-face 임포트는 main.jsx 에서 수행합니다.
+   (Vite가 폰트 파일을 /assets/... 경로로 번들링합니다.)
+───────────────────────────────────────────────────────────── */
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+/* ─────────────────────────────────────────────────────────────
+   Tailwind CSS v4 — 전체 유틸리티 클래스 로드
+   @tailwindcss/vite 플러그인이 빌드 시 처리합니다.
+   ※ Tailwind v4는 tailwind.config.js 대신 @theme 블록을
+     CSS 파일에서 직접 선언하는 CSS-first 방식을 사용합니다.
+───────────────────────────────────────────────────────────── */
+@import "tailwindcss";
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+/* ═══════════════════════════════════════════════════════════════
+   AI Interview Mentor — 디자인 토큰 (Design Tokens)
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+   [컨셉] "깔끔하고 전문적이며 신뢰감 있는 AI 면접 코치"
+
+   [색상 철학]
+   ┌─────────────────────────────────────────────────────────┐
+   │  Primary:  #5B9BD5  하늘색 파랑   → 신뢰감·전문성      │
+   │  Accent:   #E8F4FD  연한 파랑     → 선택 상태·강조 배경  │
+   │  Warm:     #FAF7F2  크림/베이지   → 따뜻한 보조 배경    │
+   │  BG:       #F8FAFC  거의 흰색     → 전체 페이지 배경    │
+   └─────────────────────────────────────────────────────────┘
+
+   [사용 패턴]
+   - bg-mentor-bg      → 전체 페이지 배경 (거의 흰색)
+   - bg-mentor-surface → 카드·모달 배경 (순백)
+   - bg-mentor-accent  → 선택된 탭·버튼 배경 (연한 파랑)
+   - bg-mentor-warm    → 크림 배경 섹션
+   - text-mentor-text  → 본문 (진한 네이비)
+   - text-mentor-muted → 보조 텍스트, 플레이스홀더 (회색)
+
+   Tailwind v4 @theme: 클래스 생성 규칙
+   --color-X-Y → bg-X-Y / text-X-Y / border-X-Y
+═══════════════════════════════════════════════════════════════ */
+@theme {
+  /* ── 배경 (Backgrounds) ───────────────────────────────── */
+  --color-mentor-bg:            #F8FAFC;  /* 전체 페이지 배경 (거의 흰색) */
+  --color-mentor-surface:       #FFFFFF;  /* 카드·패널 배경 (순백) */
+  --color-mentor-warm:          #FAF7F2;  /* 크림/베이지 보조 배경 */
+  --color-mentor-accent:        #E8F4FD;  /* 연한 파랑 — 선택 상태, 강조 배경 */
+
+  /* ── 텍스트 (Typography) ───────────────────────────────── */
+  --color-mentor-text:          #1E293B;  /* 본문 기본 텍스트 (진한 네이비) */
+  --color-mentor-muted:         #64748B;  /* 보조 텍스트, 레이블 (중간 회색) */
+
+  /* ── 선 (Borders) ──────────────────────────────────────── */
+  --color-mentor-border:        #E2E8F0;  /* 구분선, 테두리 (연한 회색) */
+
+  /* ── 브랜드 컬러 (Brand) ───────────────────────────────── */
+  --color-mentor-primary:       #5B9BD5;  /* 주요 버튼, 강조 (하늘색 파랑) */
+  --color-mentor-primary-dark:  #4A8BC4;  /* hover 시 — primary 약 10% 진하게 */
+  --color-mentor-primary-light: #8DC3E8;  /* 포커스 링, 연한 강조 — primary 약 25% 밝게 */
+
+  /* ── 상태 컬러 (Status) ────────────────────────────────── */
+  --color-mentor-success:       #22C55E;  /* 성공, 정답 (초록) */
+  --color-mentor-danger:        #EF4444;  /* 오류, 오답 (빨강) */
+
+  /* ── 확장 컬러 (Extended) ───────────────────────────────── */
+  --color-mentor-sky:           #7EC8E3;  /* 밝은 하늘색 — 보조 강조색 */
+  --color-mentor-sky-light:     #EBF4FD;  /* 매우 연한 파랑 배경 */
+  --color-mentor-warm-border:   #EDE8E3;  /* 따뜻한 계열 테두리 */
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+/* ─────────────────────────────────────────────────────────────
+   CSS 변수 — Tailwind arbitrary value [var(--...)] 에서 사용
+   예) shadow-[var(--shadow-card)]
+   @theme 밖에 두어야 Tailwind 토큰이 아닌 일반 CSS 변수로 등록
+───────────────────────────────────────────────────────────── */
+:root {
+  /* 카드 기본 그림자 — 아주 연하게, 전문적인 인상 */
+  --shadow-card:
+    0 1px 3px 0 rgba(0, 0, 0, 0.06),
+    0 1px 2px -1px rgba(0, 0, 0, 0.04);
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+  /* 카드 hover 그림자 — 살짝 파란 계열로 부각 */
+  --shadow-card-hover:
+    0 4px 16px 0 rgba(91, 155, 213, 0.16),
+    0 2px 6px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   전역 리셋 — Tailwind preflight 위에 추가하는 최소 재정의
+───────────────────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  background-color: var(--color-mentor-bg);
+  color: var(--color-mentor-text);
+  /*
+   * Noto Sans KR → Apple/Google 한국어 폰트 → 시스템 폰트 순서로 폴백
+   * 폰트 굵기는 300~600만 사용 (너무 가늘거나 굵으면 가독성 저하)
+   */
+  font-family:
+    'Noto Sans KR',
+    'Apple SD Gothic Neo',
+    'Malgun Gothic',
+    'Noto Sans',
+    system-ui,
+    sans-serif;
+  /* 서브픽셀 안티앨리어싱 — 텍스트를 더 선명하게 렌더링 */
+  -webkit-font-smoothing:  antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
+/* 스크롤바 스타일 — webkit 기반 브라우저 (Chrome, Edge, Safari) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-mentor-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-mentor-border);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-mentor-muted);
+}
+
+/* 루트 최소 높이 — 100dvh: 모바일 주소창 고려한 동적 뷰포트 높이 */
 #root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
+  min-height: 100dvh;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+/* ─────────────────────────────────────────────────────────────
+   그라디언트 텍스트 유틸리티
+   사용: className="text-gradient"
+   원리: background-clip + -webkit-text-fill-color 조합
+───────────────────────────────────────────────────────────── */
+.text-gradient {
+  background: linear-gradient(135deg, #5B9BD5 0%, #3B82F6 50%, #0EA5E9 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+/* ═══════════════════════════════════════════════════════════════
+   커스텀 애니메이션
+
+   [설계 원칙]
+   - 시간: 0.4~0.6s (너무 길면 지루함, 너무 짧으면 어색함)
+   - ease-out: 빠르게 시작 → 부드럽게 끝 (UI 등장에 가장 자연스러운 곡선)
+   - forwards: 애니메이션 종료 후 마지막 keyframe 상태 유지
+   - 딜레이 클래스(.delay-*)와 조합해 순차 등장 연출 가능
+
+   [사용 예]
+   className="animate-fade-in-up delay-200"
+   → 200ms 후 아래서 위로 페이드인
+═══════════════════════════════════════════════════════════════ */
+
+/* 1. 페이드인 + 위로 슬라이드 ─────────────────────────────── */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
+.animate-fade-in-up {
+  animation: fade-in-up 0.5s ease-out forwards;
+}
+
+/* 2. 페이드인 + 오른쪽에서 슬라이드 ────────────────────────── */
+@keyframes fade-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
 }
-p {
-  margin: 0;
+.animate-fade-in-right {
+  animation: fade-in-right 0.6s ease-out forwards;
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+/* 3. 부드러운 상하 플로팅 (Hero 카드 장식 전용) ─────────────── */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-10px); }
+}
+.animate-float {
+  animation: float 4s ease-in-out infinite;
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+/* 4. 살짝 다른 타이밍의 플로팅 (겹치는 요소에 다양성 부여) ──── */
+.animate-float-alt {
+  animation: float 5s ease-in-out infinite reverse;
 }
+
+/* 5. 점수 링 맥박 효과 (score circle 장식) ─────────────────── */
+@keyframes pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0px rgba(91, 155, 213, 0.35); }
+  50%       { box-shadow: 0 0 0 8px rgba(91, 155, 213, 0.00); }
+}
+.animate-pulse-ring {
+  animation: pulse-ring 2.5s ease-in-out infinite;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   애니메이션 딜레이 유틸리티
+   Tailwind v4의 delay-* 는 transition-delay 이므로
+   animation-delay 용도로는 별도 클래스 정의가 필요합니다.
+───────────────────────────────────────────────────────────── */
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+.delay-700 { animation-delay: 700ms; }

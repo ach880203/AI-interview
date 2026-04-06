@@ -22,6 +22,27 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── ChromaDB (Vector DB) ──────────────────────────────────────
+  # 면접 문서를 벡터로 저장하고 RAG 검색에 사용합니다.
+  # 데이터는 chroma_data 볼륨에 영속 저장됩니다.
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: ai-interview-chroma
+    restart: unless-stopped
+    ports:
+      - "8001:8000"   # 외부 8001 → 컨테이너 8000 (ChromaDB 기본 포트)
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      # 익명 텔레메트리 비활성화 (프라이버시)
+      ANONYMIZED_TELEMETRY: "false"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ── Python AI 서버 ────────────────────────────────────────────
   ai-server:
     build:
@@ -34,8 +55,14 @@ services:
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       MODEL_NAME: ${MODEL_NAME:-gpt-4o}
+      # ChromaDB 연결 설정 — 컨테이너명으로 접근
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000
     env_file:
       - ./ai-server/.env
+    depends_on:
+      chromadb:
+        condition: service_healthy
 
   # ── Spring Boot 백엔드 ────────────────────────────────────────
   backend:
@@ -47,10 +74,18 @@ services:
     ports:
       - "8080:8080"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mariadb://mariadb:3306/ai_interview
+      # DB 연결 — 컨테이너 내부에서 mariadb 서비스명으로 접근
+      SPRING_DATASOURCE_URL: jdbc:mariadb://mariadb:3306/ai_interview?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Seoul
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-1234}
+      # AI 서버 — 컨테이너 내부에서 ai-server 서비스명으로 접근
       AI_SERVER_URL: http://ai-server:8000
+      # JWT 시크릿 — 반드시 .env 파일에 강한 값으로 설정
+      JWT_SECRET: ${JWT_SECRET}
+      # 운영 프로파일 활성화 (ddl-auto=validate, SQL 로그 비활성화)
+      SPRING_PROFILES_ACTIVE: prod
+      # CORS 허용 오리진 — 프론트엔드 도메인으로 설정
+      CORS_ALLOWED_ORIGINS: ${FRONTEND_URL:-http://localhost}
     depends_on:
       mariadb:
         condition: service_healthy
@@ -62,6 +97,10 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        # Vite 빌드 타임에 번들에 포함되는 API 주소
+        # 로컬: http://localhost:8080 / 운영: https://api.your-domain.com
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
     container_name: ai-interview-frontend
     restart: unless-stopped
     ports:
@@ -71,3 +110,4 @@ services:
 
 volumes:
   mariadb_data:
+  chroma_data:

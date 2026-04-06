@@ -2,6 +2,8 @@ from fastapi import APIRouter, Request
 
 from limiter import limiter
 from schemas.interview import (
+    DailyPracticeRequest,
+    DailyPracticeResponse,
     InterviewFeedbackRequest,
     InterviewFeedbackResponse,
     InterviewQuestionRequest,
@@ -30,6 +32,7 @@ async def generate_question(request: Request, body: InterviewQuestionRequest) ->
         body.jobDescription,
         body.conversationHistory,
         body.questionType,
+        body.sessionId,
     )
 
 
@@ -42,6 +45,17 @@ async def generate_question(request: Request, body: InterviewQuestionRequest) ->
         "약점, 개선 방향, STAR 기법 모범 답안을 반환합니다."
     ),
 )
-@limiter.limit("5/minute")
+@limiter.limit("10/minute")
 async def generate_feedback(request: Request, body: InterviewFeedbackRequest) -> InterviewFeedbackResponse:
-    return await interview_service.generate_feedback(body.conversationHistory)
+    return await interview_service.generate_feedback(body.conversationHistory, body.answerDurations, body.jobDescription)
+
+
+@router.post(
+    "/daily-practice",
+    response_model=DailyPracticeResponse,
+    summary="오늘의 연습질문 답변 평가 (GPT-4o)",
+    description="공통 면접 질문에 대한 답변을 간결하게 평가합니다.",
+)
+@limiter.limit("20/minute")
+async def evaluate_daily_practice(request: Request, body: DailyPracticeRequest) -> DailyPracticeResponse:
+    return await interview_service.evaluate_daily_practice(body.question, body.answer)

@@ -10,7 +10,7 @@ router = APIRouter(prefix="/stt", tags=["STT"])
 @router.post(
     "",
     response_model=SttResponse,
-    summary="음성 파일 → 텍스트 변환 (Whisper STT)",
+    summary="음성 파일 -> 텍스트 변환 (Whisper STT)",
     description=(
         "multipart/form-data의 **audio** 필드로 오디오 파일을 업로드하면 "
         "OpenAI Whisper(whisper-1)가 한국어 텍스트로 변환합니다.\n\n"
@@ -41,6 +41,6 @@ async def stt_endpoint(
     Spring Boot가 multipart/form-data로 'audio' 필드에
     오디오 파일을 첨부하여 이 엔드포인트를 호출합니다.
     """
-    # 서비스 레이어에 위임 — 유효성 검증, Whisper 호출, 임시 파일 정리 모두 서비스에서 처리
+    # 서비스 레이어에 위임 - 유효성 검증, Whisper 호출, 임시 파일 정리 모두 서비스에서 처리
     text = await speech_to_text(audio)
     return SttResponse(text=text)

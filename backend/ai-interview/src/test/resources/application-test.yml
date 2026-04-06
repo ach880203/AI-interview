@@ -1,0 +1,39 @@
+spring:
+  datasource:
+    # 테스트에서는 외부 MariaDB에 의존하지 않도록 H2 인메모리 DB를 사용합니다.
+    url: jdbc:h2:mem:ai_interview_test;MODE=MariaDB;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    hibernate:
+      # 테스트 시작 시 스키마를 만들고 종료 시 정리해서 항상 같은 조건으로 검증합니다.
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+    defer-datasource-initialization: false
+
+  sql:
+    init:
+      # 테스트에서는 초기 데이터 스크립트를 실행하지 않습니다.
+      mode: never
+
+jwt:
+  # 테스트 컨텍스트에서도 JWT 관련 빈이 안전하게 생성되도록 고정된 테스트용 값을 사용합니다.
+  secret: dGhpcy1pcy1hLXZlcnktbG9uZy1zZWNyZXQta2V5LWZvci1haS1pbnRlcnZpZXctcGxhdGZvcm0hIQ==
+  access-expiration: 1800000
+  refresh-expiration: 604800000
+
+cors:
+  # 테스트 컨텍스트에서 SecurityConfig의 @Value 바인딩이 실패하지 않도록 고정값 제공
+  allowed-origins: http://localhost:5173
+
+ai:
+  server:
+    # 테스트에서는 실제 AI 서버 호출 대신 MockAiService가 선택되도록 주소만 채워 둡니다.
+    url: http://localhost:8000
+  service:
+    mock: true

@@ -36,6 +36,10 @@ const HIDDEN_WIDGET_STORAGE_KEY = 'dashboard-hidden-widgets';
  */
 const LAST_LAYOUT_SNAPSHOT_KEY = 'dashboard-last-widget-layout';
 
+function buildDashboardStorageKey(baseKey, userStorageKey = 'anonymous') {
+  return `${baseKey}:${userStorageKey}`;
+}
+
 /** Recharts 차트에 사용하는 색상 팔레트 */
 const CHART_COLORS = ['#6366f1', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#a78bfa'];
 
@@ -62,7 +66,6 @@ const DASHBOARD_WIDGETS = [
   { id: 'wrong-notes',     title: '오답 노트',          removable: true },
   { id: 'weakness',        title: '학습 약점 요약',    removable: true },
   { id: 'activity',        title: '학습 활동',          removable: true },
-  { id: 'recent-learning', title: '최근 학습 기록',    removable: true },
   { id: 'memo',            title: '메모장',             removable: true },
   { id: 'todo',            title: 'TO-DO 리스트',       removable: true },
   { id: 'daily-practice',  title: '오늘의 연습질문',    removable: true },
@@ -87,10 +90,9 @@ const DEFAULT_LAYOUTS = {
     { i: 'wrong-notes',    x: 7, y: 21, w: 5,  h: 6, minW: 4, minH: 3 },
     { i: 'weakness',       x: 0, y: 27, w: 7,  h: 6, minW: 3, minH: 3 },
     { i: 'activity',       x: 7, y: 27, w: 5,  h: 5, minW: 5, minH: 3 },
-    { i: 'recent-learning',x: 0, y: 33, w: 12, h: 5, minW: 3, minH: 3 },
-    { i: 'memo',           x: 0, y: 38, w: 5,  h: 5, minW: 3, minH: 3 },
-    { i: 'todo',           x: 5, y: 38, w: 7,  h: 5, minW: 3, minH: 3 },
-    { i: 'daily-practice', x: 0, y: 43, w: 12, h: 5, minW: 4, minH: 4 },
+    { i: 'memo',           x: 0, y: 33, w: 5,  h: 5, minW: 3, minH: 3 },
+    { i: 'todo',           x: 5, y: 33, w: 7,  h: 5, minW: 3, minH: 3 },
+    { i: 'daily-practice', x: 0, y: 38, w: 12, h: 5, minW: 4, minH: 4 },
   ],
   md: [
     { i: 'stats',          x: 0, y: 0,  w: 10, h: 3 },
@@ -106,10 +108,9 @@ const DEFAULT_LAYOUTS = {
     { i: 'wrong-notes',    x: 6, y: 21, w: 4,  h: 6 },
     { i: 'weakness',       x: 0, y: 27, w: 6,  h: 6 },
     { i: 'activity',       x: 6, y: 27, w: 4,  h: 5 },
-    { i: 'recent-learning',x: 0, y: 33, w: 10, h: 5 },
-    { i: 'memo',           x: 0, y: 38, w: 5,  h: 5 },
-    { i: 'todo',           x: 5, y: 38, w: 5,  h: 5 },
-    { i: 'daily-practice', x: 0, y: 43, w: 10, h: 5 },
+    { i: 'memo',           x: 0, y: 33, w: 5,  h: 5 },
+    { i: 'todo',           x: 5, y: 33, w: 5,  h: 5 },
+    { i: 'daily-practice', x: 0, y: 38, w: 10, h: 5 },
   ],
   sm: [
     { i: 'stats',          x: 0, y: 0,  w: 6, h: 3 },
@@ -125,10 +126,9 @@ const DEFAULT_LAYOUTS = {
     { i: 'wrong-notes',    x: 0, y: 45, w: 6, h: 6 },
     { i: 'weakness',       x: 0, y: 51, w: 6, h: 6 },
     { i: 'activity',       x: 0, y: 57, w: 6, h: 5 },
-    { i: 'recent-learning',x: 0, y: 62, w: 6, h: 5 },
-    { i: 'memo',           x: 0, y: 67, w: 6, h: 5 },
-    { i: 'todo',           x: 0, y: 72, w: 6, h: 5 },
-    { i: 'daily-practice', x: 0, y: 77, w: 6, h: 6 },
+    { i: 'memo',           x: 0, y: 62, w: 6, h: 5 },
+    { i: 'todo',           x: 0, y: 67, w: 6, h: 5 },
+    { i: 'daily-practice', x: 0, y: 72, w: 6, h: 6 },
   ],
 };
 
@@ -140,17 +140,19 @@ const DEFAULT_LAYOUTS = {
  * 기존 사용자의 저장 레이아웃에 신규 위젯이 없으면,
  * DEFAULT_LAYOUTS의 해당 위젯 위치를 자동으로 추가합니다.
  */
-function loadSavedLayouts() {
+function loadSavedLayouts(userStorageKey) {
   try {
-    const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
+    const saved = localStorage.getItem(buildDashboardStorageKey(LAYOUT_STORAGE_KEY, userStorageKey));
     if (!saved) return DEFAULT_LAYOUTS;
 
     const parsed = JSON.parse(saved);
+    const allowedWidgetIds = new Set(DASHBOARD_WIDGETS.map((widget) => widget.id));
     const result = {};
     for (const bp of ['lg', 'md', 'sm']) {
-      const existingIds = new Set((parsed[bp] || []).map((item) => item.i));
+      const cleanedLayout = (parsed[bp] || []).filter((item) => allowedWidgetIds.has(item.i));
+      const existingIds = new Set(cleanedLayout.map((item) => item.i));
       const missingItems = (DEFAULT_LAYOUTS[bp] || []).filter((item) => !existingIds.has(item.i));
-      result[bp] = [...(parsed[bp] || []), ...missingItems];
+      result[bp] = [...cleanedLayout, ...missingItems];
     }
     return result;
   } catch {
@@ -162,10 +164,11 @@ function loadSavedLayouts() {
  * localStorage에서 숨긴 위젯 ID 목록을 불러옵니다.
  * 없으면 빈 배열을 반환합니다.
  */
-function loadHiddenWidgetIds() {
+function loadHiddenWidgetIds(userStorageKey) {
   try {
-    const saved = localStorage.getItem(HIDDEN_WIDGET_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
+    const saved = localStorage.getItem(buildDashboardStorageKey(HIDDEN_WIDGET_STORAGE_KEY, userStorageKey));
+    const allowedWidgetIds = new Set(DASHBOARD_WIDGETS.map((widget) => widget.id));
+    return saved ? JSON.parse(saved).filter((widgetId) => allowedWidgetIds.has(widgetId)) : [];
   } catch {
     return [];
   }
@@ -175,9 +178,9 @@ function loadHiddenWidgetIds() {
  * localStorage에서 숨기기 직전 위치 스냅샷을 불러옵니다.
  * 없으면 빈 객체를 반환합니다.
  */
-function loadLastWidgetLayouts() {
+function loadLastWidgetLayouts(userStorageKey) {
   try {
-    const saved = localStorage.getItem(LAST_LAYOUT_SNAPSHOT_KEY);
+    const saved = localStorage.getItem(buildDashboardStorageKey(LAST_LAYOUT_SNAPSHOT_KEY, userStorageKey));
     return saved ? JSON.parse(saved) : {};
   } catch {
     return {};
@@ -219,6 +222,7 @@ function useCountUp(target, duration = 1000) {
  */
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
+  const userStorageKey = user?.email ?? 'anonymous';
 
   const [dashboardData, setDashboardData] = useState({
     resumes: [],
@@ -348,13 +352,22 @@ export default function DashboardPage() {
     return () => {
       shouldIgnore = true;
     };
-  }, []);
+  }, [userStorageKey]);
 
-  const [layouts, setLayouts] = useState(loadSavedLayouts);
+  const [layouts, setLayouts] = useState(() => loadSavedLayouts(userStorageKey));
   const [editMode, setEditMode] = useState(false);
-  const [hiddenWidgetIds, setHiddenWidgetIds] = useState(loadHiddenWidgetIds);
-  const [lastWidgetLayouts, setLastWidgetLayouts] = useState(loadLastWidgetLayouts);
+  const [hiddenWidgetIds, setHiddenWidgetIds] = useState(() => loadHiddenWidgetIds(userStorageKey));
+  const [lastWidgetLayouts, setLastWidgetLayouts] = useState(() => loadLastWidgetLayouts(userStorageKey));
   const [showWidgetSelector, setShowWidgetSelector] = useState(false);
+
+  useEffect(() => {
+    // 대시보드 위젯 배치는 사용자 취향이 크게 갈리므로 계정별로 분리 저장합니다.
+    setLayouts(loadSavedLayouts(userStorageKey));
+    setHiddenWidgetIds(loadHiddenWidgetIds(userStorageKey));
+    setLastWidgetLayouts(loadLastWidgetLayouts(userStorageKey));
+    setShowWidgetSelector(false);
+    setEditMode(false);
+  }, [userStorageKey]);
 
   const gridContainerRef = useRef(null);
   const [gridWidth, setGridWidth] = useState(1200);
@@ -394,7 +407,7 @@ export default function DashboardPage() {
     }
     setLayouts(cleaned);
     try {
-      localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(cleaned));
+      localStorage.setItem(buildDashboardStorageKey(LAYOUT_STORAGE_KEY, userStorageKey), JSON.stringify(cleaned));
     } catch {
       // localStorage 용량 초과 시 무시
     }
@@ -410,9 +423,9 @@ export default function DashboardPage() {
     setHiddenWidgetIds([]);
     setLastWidgetLayouts({});
     setShowWidgetSelector(false);
-    localStorage.removeItem(LAYOUT_STORAGE_KEY);
-    localStorage.removeItem(HIDDEN_WIDGET_STORAGE_KEY);
-    localStorage.removeItem(LAST_LAYOUT_SNAPSHOT_KEY);
+    localStorage.removeItem(buildDashboardStorageKey(LAYOUT_STORAGE_KEY, userStorageKey));
+    localStorage.removeItem(buildDashboardStorageKey(HIDDEN_WIDGET_STORAGE_KEY, userStorageKey));
+    localStorage.removeItem(buildDashboardStorageKey(LAST_LAYOUT_SNAPSHOT_KEY, userStorageKey));
   }
 
   const handleHideWidget = useCallback((widgetId) => {
@@ -423,7 +436,7 @@ export default function DashboardPage() {
         if (item) snapshot[bp] = { x: item.x, y: item.y, w: item.w, h: item.h };
       });
       const next = { ...prev, [widgetId]: snapshot };
-      try { localStorage.setItem(LAST_LAYOUT_SNAPSHOT_KEY, JSON.stringify(next)); } catch {}
+      try { localStorage.setItem(buildDashboardStorageKey(LAST_LAYOUT_SNAPSHOT_KEY, userStorageKey), JSON.stringify(next)); } catch {}
       return next;
     });
 
@@ -432,16 +445,16 @@ export default function DashboardPage() {
       ['lg', 'md', 'sm'].forEach((bp) => {
         next[bp] = (prev[bp] || []).filter((l) => l.i !== widgetId);
       });
-      try { localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(next)); } catch {}
+      try { localStorage.setItem(buildDashboardStorageKey(LAYOUT_STORAGE_KEY, userStorageKey), JSON.stringify(next)); } catch {}
       return next;
     });
 
     setHiddenWidgetIds((prev) => {
       const next = [...prev, widgetId];
-      try { localStorage.setItem(HIDDEN_WIDGET_STORAGE_KEY, JSON.stringify(next)); } catch {}
+      try { localStorage.setItem(buildDashboardStorageKey(HIDDEN_WIDGET_STORAGE_KEY, userStorageKey), JSON.stringify(next)); } catch {}
       return next;
     });
-  }, [layouts]);
+  }, [layouts, userStorageKey]);
 
   const handleRestoreWidget = useCallback((widgetId) => {
     setLayouts((prev) => {
@@ -473,18 +486,18 @@ export default function DashboardPage() {
         }
         next[bp] = [...existingItems, newItem];
       });
-      try { localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(next)); } catch {}
+      try { localStorage.setItem(buildDashboardStorageKey(LAYOUT_STORAGE_KEY, userStorageKey), JSON.stringify(next)); } catch {}
       return next;
     });
 
     setHiddenWidgetIds((prev) => {
       const next = prev.filter((id) => id !== widgetId);
-      try { localStorage.setItem(HIDDEN_WIDGET_STORAGE_KEY, JSON.stringify(next)); } catch {}
+      try { localStorage.setItem(buildDashboardStorageKey(HIDDEN_WIDGET_STORAGE_KEY, userStorageKey), JSON.stringify(next)); } catch {}
       return next;
     });
 
     setShowWidgetSelector(false);
-  }, [lastWidgetLayouts]);
+  }, [lastWidgetLayouts, userStorageKey]);
 
   // ── 파생 데이터 ──────────────────────────────────────────────
   const totalDocuments =
@@ -495,7 +508,6 @@ export default function DashboardPage() {
     (session) => session.status === 'COMPLETED'
   ).length;
   const recentSessions = dashboardData.sessions.slice(0, 4);
-  const recentAttempts = dashboardData.learningStats.recentAttempts.slice(0, 5);
   const weakCategories = [...dashboardData.analyticsCategories]
     .sort((left, right) => {
       if (left.isWeak !== right.isWeak) return left.isWeak ? -1 : 1;
@@ -902,7 +914,7 @@ export default function DashboardPage() {
             )}
 
             {/* 최근 학습 기록 위젯 */}
-            {!hiddenWidgetIds.includes('recent-learning') && (
+            {false && !hiddenWidgetIds.includes('recent-learning') && (
               <div key="recent-learning">
                 <DraggableWidgetWrapper
                   editMode={editMode}

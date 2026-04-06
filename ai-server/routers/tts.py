@@ -12,7 +12,7 @@ router = APIRouter(prefix="/tts", tags=["TTS"])
 
 @router.post(
     "/speak",
-    summary="텍스트 → MP3 음성 변환 (OpenAI TTS)",
+    summary="텍스트 -> MP3 음성 변환 (OpenAI TTS)",
     description=(
         "입력한 텍스트를 OpenAI TTS(tts-1 모델)로 변환하여 MP3 오디오를 반환합니다.\n\n"
         "**모델**: tts-1 (빠른 응답, 자연스러운 발음)  \n"
@@ -49,5 +49,5 @@ async def tts_speak(request: Request, body: TtsSpeakRequest) -> Response:
         response_format="mp3",
     )
 
-    # response.content — 변환된 MP3 오디오 bytes
+    # response.content - 변환된 MP3 오디오 bytes
     return Response(content=response.content, media_type="audio/mpeg")

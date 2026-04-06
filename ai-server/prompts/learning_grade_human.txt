@@ -1,0 +1,6 @@
+[문제]: {question}
+[정답]: {correct_answer}
+[해설]: {explanation}
+[사용자 답변]: {user_answer}
+
+위 정보를 바탕으로 채점 결과와 피드백을 JSON으로 제공하세요.

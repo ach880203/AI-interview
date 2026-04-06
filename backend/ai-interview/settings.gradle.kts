@@ -1,1 +1,1 @@
-rootProject.name = "ai-interview"
+rootProject.name = "ai_interview_chang"

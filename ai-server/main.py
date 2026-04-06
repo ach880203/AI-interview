@@ -1,7 +1,19 @@
+import asyncio
 import logging
 import os
+import sys
 
-from dotenv import load_dotenv
+# Windows에서 Playwright가 Chromium 서브프로세스를 생성하려면
+# ProactorEventLoop가 필요합니다. uvicorn 기본값인 SelectorEventLoop은
+# subprocess_exec를 지원하지 않아 NotImplementedError가 발생합니다.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - 복구 환경에서 dotenv 패키지가 깨진 경우 대비
+    def load_dotenv(*args, **kwargs):
+        return False
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,11 +29,11 @@ logger = logging.getLogger(__name__)
 # .env 파일 로드 (OPENAI_API_KEY, MODEL_NAME)
 load_dotenv()
 
-from routers import document, interview, learning, scraping, stt, tts  # noqa: E402 (load_dotenv 이후에 임포트)
+from routers import asset, document, interview, learning, scraping, stt, tts  # noqa: E402 (load_dotenv 이후에 임포트)
 
 # ── 앱 초기화 ─────────────────────────────────────────────────
 app = FastAPI(
-    title="AI Interview Platform — AI Server",
+    title="AI 면접 플랫폼 - AI 서버",
     description=(
         "면접 질문 생성, 피드백, STT(Whisper), 학습 문제 생성/채점 API\n\n"
         "Spring Boot 백엔드(8080)에서 호출하며, 직접 외부에 노출하지 않습니다."
@@ -49,10 +61,11 @@ app.add_middleware(
 )
 
 # ── 라우터 등록 ───────────────────────────────────────────────
-app.include_router(stt.router)       # POST /stt            — Whisper 음성→텍스트 변환
-app.include_router(tts.router)       # POST /tts/speak      — OpenAI TTS 텍스트→음성 변환
+app.include_router(stt.router)       # POST /stt            - Whisper 음성->텍스트 변환
+app.include_router(tts.router)       # POST /tts/speak      - OpenAI TTS 텍스트->음성 변환
 app.include_router(interview.router)
 app.include_router(learning.router)
+app.include_router(asset.router)
 app.include_router(scraping.router)
 app.include_router(document.router)
 
@@ -102,7 +115,7 @@ async def log_interview_question_request(request: Request, call_next):
     body = await request.body()
     decoded_body = body.decode("utf-8", errors="replace")
 
-    logger.warning(
+    logger.debug(
         "[AI 요청 진단] path=%s method=%s headers=%s body_length=%s body=%s",
         request.url.path,
         request.method,
@@ -121,7 +134,7 @@ async def log_interview_question_request(request: Request, call_next):
     restored_request = Request(request.scope, receive)
     response = await call_next(restored_request)
 
-    logger.warning(
+    logger.debug(
         "[AI 요청 진단] path=%s response_status=%s",
         request.url.path,
         response.status_code,
@@ -129,13 +142,13 @@ async def log_interview_question_request(request: Request, call_next):
     return response
 
 
-# ── 전역 예외 핸들러 — Spring Boot 호환 형식 ─────────────────
+# -- 전역 예외 핸들러 - Spring Boot 호환 형식 -----------------
 # Spring Boot GlobalExceptionHandler가 기대하는 형식:
 # { "success": false, "error": { "code": "...", "message": "..." } }
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    """HTTPException → Spring Boot 호환 에러 응답으로 변환"""
+    """HTTPException -> Spring Boot 호환 에러 응답으로 변환"""
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -150,7 +163,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(RateLimitExceeded)
 async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
-    """Rate Limit 초과 → 429 + Spring Boot 호환 형식"""
+    """Rate Limit 초과 -> 429 + Spring Boot 호환 형식"""
     return JSONResponse(
         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
         content={
@@ -165,10 +178,10 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """422 Pydantic 유효성 검사 실패 — 로그 + Spring Boot 호환 형식"""
+    """422 Pydantic 유효성 검사 실패 - 로그 + Spring Boot 호환 형식"""
     body = await request.body()
     logger.error(
-        "[422] 요청 유효성 검사 실패 — path=%s\nheaders=%s\nerrors=%s\nbody_length=%s\nbody=%s",
+        "[422] 요청 유효성 검사 실패 - path=%s\nheaders=%s\nerrors=%s\nbody_length=%s\nbody=%s",
         request.url.path,
         _extract_interview_request_headers(request),
         exc.errors(),

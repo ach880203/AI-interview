@@ -1,9 +1,17 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import AppLayout from '../components/layout/AppLayout';
 import ErrorBoundary from '../components/ErrorBoundary';
+import IntroVideo from '../components/IntroVideo';
 import ProtectedRoute from '../components/ProtectedRoute';
+
+/**
+ * sessionStorage 키 — 이 값이 있으면 인트로를 이미 본 것으로 처리합니다.
+ * localStorage 대신 sessionStorage를 사용해 탭을 닫으면 초기화되도록 합니다.
+ * (매 세션마다 첫 접속에서만 영상이 재생됩니다.)
+ */
+const INTRO_SEEN_KEY = 'ai_mentor_intro_seen';
 
 // ── 홈 (즉시 로드 — 최초 진입점) ──────────────────────────────
 import HomePage from '../pages/HomePage';
@@ -15,7 +23,12 @@ import RegisterPage from '../pages/auth/RegisterPage';
 // ── 나머지 페이지 (lazy — 첫 번들 크기 최소화) ─────────────────
 const DashboardPage            = lazy(() => import('../pages/DashboardPage'));
 const MyPage                   = lazy(() => import('../pages/MyPage'));
-const SubscriptionPage         = lazy(() => import('../pages/SubscriptionPage'));
+const CustomerCenterPage       = lazy(() => import('../pages/CustomerCenterPage'));
+const SubscriptionLandingPage  = lazy(() => import('../pages/subscription/SubscriptionLandingPage'));
+const SubscriptionCheckoutPage = lazy(() => import('../pages/subscription/SubscriptionCheckoutPage'));
+const SubscriptionPaymentPage  = lazy(() => import('../pages/subscription/SubscriptionPaymentPage'));
+const SubscriptionPaymentCallbackPage = lazy(() => import('../pages/subscription/SubscriptionPaymentCallbackPage'));
+const SubscriptionCompletePage = lazy(() => import('../pages/subscription/SubscriptionCompletePage'));
 
 const ResumePage               = lazy(() => import('../pages/profile/ResumePage'));
 const CoverLetterPage          = lazy(() => import('../pages/profile/CoverLetterPage'));
@@ -34,8 +47,13 @@ const LearningWeaknessPage     = lazy(() => import('../pages/learning/LearningWe
 
 const BookStorePage            = lazy(() => import('../pages/bookstore/BookStorePage'));
 const CartPage                 = lazy(() => import('../pages/bookstore/CartPage'));
+const OrderCheckoutPage        = lazy(() => import('../pages/bookstore/OrderCheckoutPage'));
+const OrderPaymentPage         = lazy(() => import('../pages/bookstore/OrderPaymentPage'));
+const OrderPaymentCallbackPage = lazy(() => import('../pages/bookstore/OrderPaymentCallbackPage'));
+const OrderCompletePage        = lazy(() => import('../pages/bookstore/OrderCompletePage'));
 const OrderPage                = lazy(() => import('../pages/bookstore/OrderPage'));
 
+const KakaoCallbackPage        = lazy(() => import('../pages/auth/KakaoCallbackPage'));
 const WrongAnswerPage          = lazy(() => import('../pages/WrongAnswerPage'));
 const AdminPage                = lazy(() => import('../pages/admin/AdminPage'));
 
@@ -43,20 +61,50 @@ const AdminPage                = lazy(() => import('../pages/admin/AdminPage'));
 function PageLoader() {
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <span className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
+      <span className="h-8 w-8 animate-spin rounded-full border-4 border-mentor-accent border-t-mentor-primary" />
     </div>
   );
 }
 
 export default function AppRouter() {
+  /**
+   * 인트로 영상 표시 여부
+   *
+   * [초기값 계산]
+   * useState의 initializer function은 컴포넌트 최초 마운트 시 단 한 번만 실행됩니다.
+   * sessionStorage에 INTRO_SEEN_KEY 값이 없으면 → true(인트로 표시)
+   * 값이 있으면 → false(인트로 건너뜀)
+   */
+  const [showIntro, setShowIntro] = useState(
+    () => !sessionStorage.getItem(INTRO_SEEN_KEY)
+  );
+
+  /**
+   * 인트로 영상 종료 처리
+   * IntroVideo 컴포넌트의 onComplete 콜백으로 전달됩니다.
+   * - sessionStorage에 완료 기록 저장 (같은 세션 내 재방문 시 스킵)
+   * - showIntro를 false로 변경해 라우팅 화면으로 전환
+   */
+  function handleIntroComplete() {
+    sessionStorage.setItem(INTRO_SEEN_KEY, '1');
+    setShowIntro(false);
+  }
+
   return (
-    <BrowserRouter>
-      <ErrorBoundary>
-        <Suspense fallback={<PageLoader />}>
+    <>
+      {/* 인트로 영상 오버레이 — 처음 접속 시에만 표시 (z-[9999] 최상단) */}
+      {showIntro && (
+        <IntroVideo onComplete={handleIntroComplete} />
+      )}
+
+      <BrowserRouter>
+        <ErrorBoundary>
+          <Suspense fallback={<PageLoader />}>
           <Routes>
             {/* ── 인증 (비로그인 접근 가능) ────────────────────────── */}
             <Route path="/auth/login" element={<LoginPage />} />
             <Route path="/auth/register" element={<RegisterPage />} />
+            <Route path="/auth/kakao/callback" element={<KakaoCallbackPage />} />
 
             {/* ── 대시보드 ────────────────────────────────────────── */}
             <Route
@@ -76,10 +124,58 @@ export default function AppRouter() {
               }
             />
             <Route
+              path="/support"
+              element={
+                <ProtectedRoute>
+                  <AppLayout><CustomerCenterPage /></AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/subscription"
               element={
                 <ProtectedRoute>
-                  <AppLayout><SubscriptionPage /></AppLayout>
+                  <AppLayout><SubscriptionLandingPage /></AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/subscription/checkout"
+              element={
+                <ProtectedRoute>
+                  <AppLayout><SubscriptionCheckoutPage /></AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/subscription/payment"
+              element={
+                <ProtectedRoute>
+                  <AppLayout><SubscriptionPaymentPage /></AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/subscription/payment/callback/:subscriptionId"
+              element={
+                <ProtectedRoute>
+                  <AppLayout><SubscriptionPaymentCallbackPage /></AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/subscription/complete/:subscriptionId"
+              element={
+                <ProtectedRoute>
+                  <AppLayout><SubscriptionCompletePage /></AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/subscription/complete"
+              element={
+                <ProtectedRoute>
+                  <AppLayout><SubscriptionCompletePage /></AppLayout>
                 </ProtectedRoute>
               }
             />
@@ -107,9 +203,13 @@ export default function AppRouter() {
 
             {/* ── 도서 스토어 ──────────────────────────────────────── */}
             {/* /books: 비로그인도 목록 조회 가능 (BE SecurityConfig과 일치), 구매 시 로그인 필요 */}
-            <Route path="/books"  element={<AppLayout><BookStorePage /></AppLayout>} />
-            <Route path="/cart"   element={<ProtectedRoute><AppLayout><CartPage /></AppLayout></ProtectedRoute>} />
-            <Route path="/orders" element={<ProtectedRoute><AppLayout><OrderPage /></AppLayout></ProtectedRoute>} />
+            <Route path="/books"            element={<AppLayout><BookStorePage /></AppLayout>} />
+            <Route path="/cart"             element={<ProtectedRoute><AppLayout><CartPage /></AppLayout></ProtectedRoute>} />
+            <Route path="/orders"           element={<ProtectedRoute><AppLayout><OrderPage /></AppLayout></ProtectedRoute>} />
+            <Route path="/orders/checkout"  element={<ProtectedRoute><AppLayout><OrderCheckoutPage /></AppLayout></ProtectedRoute>} />
+            <Route path="/orders/payment"   element={<ProtectedRoute><AppLayout><OrderPaymentPage /></AppLayout></ProtectedRoute>} />
+            <Route path="/orders/payment/callback/:orderId" element={<ProtectedRoute><AppLayout><OrderPaymentCallbackPage /></AppLayout></ProtectedRoute>} />
+            <Route path="/orders/complete/:orderId" element={<ProtectedRoute><AppLayout><OrderCompletePage /></AppLayout></ProtectedRoute>} />
 
             {/* ── 관리자 (ADMIN 전용) ──────────────────────────────── */}
             <Route path="/admin" element={<ProtectedRoute requireAdmin><AppLayout><AdminPage /></AppLayout></ProtectedRoute>} />
@@ -120,8 +220,9 @@ export default function AppRouter() {
             {/* ── 404 → 홈으로 ─────────────────────────────────────── */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </Suspense>
-      </ErrorBoundary>
-    </BrowserRouter>
+          </Suspense>
+        </ErrorBoundary>
+      </BrowserRouter>
+    </>
   );
 }

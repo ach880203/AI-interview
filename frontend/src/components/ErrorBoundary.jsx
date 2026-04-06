@@ -37,13 +37,13 @@ export default class ErrorBoundary extends Component {
     }
 
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-        <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-sm text-center">
+      <div className="flex min-h-screen items-center justify-center bg-mentor-bg px-4">
+        <div className="w-full max-w-md rounded-3xl bg-mentor-surface p-8 shadow-[var(--shadow-card)] text-center">
           <p className="text-4xl">⚠️</p>
-          <h1 className="mt-4 text-xl font-bold text-slate-900">
+          <h1 className="mt-4 text-xl font-bold text-mentor-text">
             예기치 않은 오류가 발생했습니다
           </h1>
-          <p className="mt-2 text-sm leading-6 text-slate-500">
+          <p className="mt-2 text-sm leading-6 text-mentor-muted">
             일시적인 문제일 수 있습니다. 홈으로 돌아가 다시 시도해 주세요.
           </p>
           {this.state.error && (
@@ -54,7 +54,7 @@ export default class ErrorBoundary extends Component {
           <button
             type="button"
             onClick={() => this.handleReset()}
-            className="mt-6 rounded-2xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+            className="mt-6 rounded-2xl bg-mentor-primary px-6 py-3 text-sm font-semibold text-white transition hover:bg-mentor-primary-dark"
           >
             홈으로 돌아가기
           </button>

@@ -1,6 +1,7 @@
 package com.aimentor.external.ai;
 
 import com.aimentor.common.exception.AiServiceException;
+import com.aimentor.external.ai.dto.DailyPracticeResultDto;
 import com.aimentor.external.ai.dto.FeedbackDto;
 import com.aimentor.external.ai.dto.GradeResultDto;
 import com.aimentor.external.ai.dto.JobPostingScrapedDto;
@@ -60,7 +61,7 @@ public class PythonAiService implements AiService {
      * 여기서는 HTTP/1.1 + 문자열 body 전송이 명확한 JDK HttpClient를 사용합니다.
      */
     private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5))
+            .connectTimeout(Duration.ofSeconds(30))
             .version(HttpClient.Version.HTTP_1_1)
             .build();
 
@@ -87,14 +88,16 @@ public class PythonAiService implements AiService {
      * 면접 질문 생성 요청 DTO
      *
      * [주의]
-     * conversationHistory 필드명은 Python 스키마와 동일해야 합니다.
+     * conversationHistory, sessionId 필드명은 Python 스키마와 동일해야 합니다.
+     * sessionId가 있으면 Python 서버가 ChromaDB에서 관련 청크를 검색해 RAG 컨텍스트를 주입합니다.
      */
     private record InterviewQuestionRequest(
             String resumeContent,
             String coverLetterContent,
             String jobDescription,
             List<ConversationTurnDto> conversationHistory,
-            String questionType
+            String questionType,
+            String sessionId
     ) {
     }
 
@@ -107,7 +110,9 @@ public class PythonAiService implements AiService {
 
     /** 면접 피드백 생성 요청 DTO */
     private record InterviewFeedbackRequest(
-            List<ConversationTurnDto> conversationHistory
+            List<ConversationTurnDto> conversationHistory,
+            String answerDurations,
+            String jobDescription
     ) {
     }
 
@@ -116,10 +121,21 @@ public class PythonAiService implements AiService {
             int logicScore,
             int relevanceScore,
             int specificityScore,
+            int communicationScore,
+            int professionalismScore,
             int overallScore,
+            String strengths,
             String weakPoints,
             String improvements,
-            String recommendedAnswer
+            String questionFeedbacks,
+            int attitudeScore,
+            String attitudeFeedback,
+            int starScore,
+            int consistencyScore,
+            String consistencyFeedback,
+            String recommendedAnswer,
+            String timingAnalysis,
+            String keywordAnalysis
     ) {
     }
 
@@ -165,7 +181,10 @@ public class PythonAiService implements AiService {
     private record ScrapeJobPostingResponse(
             String company,
             String position,
-            String description
+            String description,
+            String location,
+            String due_date,
+            String source_url
     ) {}
 
     /** 학습 채점 요청 DTO */
@@ -184,6 +203,12 @@ public class PythonAiService implements AiService {
     ) {
     }
 
+    /** 오늘의 연습질문 요청 DTO */
+    private record DailyPracticeRequest(String question, String answer) {}
+
+    /** 오늘의 연습질문 응답 DTO */
+    private record DailyPracticeResponse(int score, String feedback) {}
+
     /**
      * 면접 질문 생성
      *
@@ -192,9 +217,10 @@ public class PythonAiService implements AiService {
      */
     @Override
     public String generateInterviewQuestion(String resumeContent, String coverLetterContent,
-                                            String jobDescription, String history, String questionType) {
+                                            String jobDescription, String history, String questionType,
+                                            String sessionId) {
         String url = aiServerUrl + "/interview/question";
-        log.debug("[Python AI] 면접 질문 생성 요청: url={}, questionType={}", url, questionType);
+        log.debug("[Python AI] 면접 질문 생성 요청: url={}, questionType={}, sessionId={}", url, questionType, sessionId);
 
         try {
             InterviewQuestionRequest request = new InterviewQuestionRequest(
@@ -202,7 +228,8 @@ public class PythonAiService implements AiService {
                     coverLetterContent,
                     jobDescription,
                     parseHistoryToTurns(history),
-                    questionType
+                    questionType,
+                    sessionId
             );
 
             InterviewQuestionResponse response = post(url, request, InterviewQuestionResponse.class);
@@ -221,22 +248,34 @@ public class PythonAiService implements AiService {
      * 받은 응답을 FeedbackDto로 변환합니다.
      */
     @Override
-    public FeedbackDto generateFeedback(String history) {
+    public FeedbackDto generateFeedback(String history, String timingAnalysis, String jobDescription) {
         String url = aiServerUrl + "/interview/feedback";
         log.debug("[Python AI] 면접 피드백 생성 요청: url={}", url);
 
         try {
-            InterviewFeedbackRequest request = new InterviewFeedbackRequest(parseHistoryToTurns(history));
+            InterviewFeedbackRequest request = new InterviewFeedbackRequest(
+                    parseHistoryToTurns(history), timingAnalysis, jobDescription);
             InterviewFeedbackResponse response = post(url, request, InterviewFeedbackResponse.class);
 
             return new FeedbackDto(
                     response.logicScore(),
                     response.relevanceScore(),
                     response.specificityScore(),
+                    response.communicationScore(),
+                    response.professionalismScore(),
                     response.overallScore(),
+                    response.strengths(),
                     response.weakPoints(),
                     response.improvements(),
-                    response.recommendedAnswer()
+                    response.questionFeedbacks(),
+                    response.attitudeScore(),
+                    response.attitudeFeedback(),
+                    response.starScore(),
+                    response.consistencyScore(),
+                    response.consistencyFeedback(),
+                    response.recommendedAnswer(),
+                    response.timingAnalysis() != null ? response.timingAnalysis() : "",
+                    response.keywordAnalysis() != null ? response.keywordAnalysis() : ""
             );
         } catch (RestClientException exception) {
             log.error("[Python AI] 면접 피드백 생성 실패", exception);
@@ -284,15 +323,9 @@ public class PythonAiService implements AiService {
      * 학습 답안 채점
      *
      * [동작 방식]
-     * Python `/learning/grade` 응답은 `isCorrect`, `aiFeedback` 위주이므로
-     * 점수는 0으로 채워 GradeResultDto 형태에 맞춰 반환합니다.
-     */
-    /**
-     * 학습 답안 채점
-     *
-     * [동작 방식]
      * Python `/learning/grade` 엔드포인트에 문제, 정답, 사용자 답변, 해설을 전달합니다.
      * explanation이 있으면 AI가 더 정확한 피드백을 생성할 수 있습니다.
+     * Python 응답은 `isCorrect`, `aiFeedback` 위주이므로 score 필드는 0으로 반환합니다.
      */
     @Override
     public GradeResultDto gradeLearningAnswer(String question, String correctAnswer, String userAnswer, String explanation) {
@@ -377,10 +410,70 @@ public class PythonAiService implements AiService {
         try {
             ScrapeJobPostingRequest request = new ScrapeJobPostingRequest(url);
             ScrapeJobPostingResponse response = post(endpoint, request, ScrapeJobPostingResponse.class);
-            return new JobPostingScrapedDto(response.company(), response.position(), response.description());
+            return new JobPostingScrapedDto(
+                    response.company(), response.position(), response.description(),
+                    response.location(), response.due_date(), response.source_url()
+            );
         } catch (RestClientException exception) {
             log.error("[Python AI] 채용공고 스크래핑 실패", exception);
             throw new AiServiceException("AI 서버 채용공고 스크래핑 실패: " + exception.getMessage(), exception);
+        }
+    }
+
+    /**
+     * 면접 세션 종료 후 ChromaDB 벡터 컬렉션 삭제
+     *
+     * [동작 방식]
+     * Python /extract/vector/{sessionId} 에 DELETE 요청을 전송합니다.
+     * ChromaDB에서 해당 세션의 컬렉션(session_{sessionId})을 삭제해 스토리지를 정리합니다.
+     *
+     * [실패 처리]
+     * 삭제 실패는 면접 결과에 영향을 주지 않으므로 예외를 전파하지 않고 log.warn만 남깁니다.
+     */
+    @Override
+    public void deleteVectorCollection(String sessionId) {
+        String url = aiServerUrl + "/extract/vector/" + sessionId;
+        log.debug("[Python AI] 벡터 컬렉션 삭제 요청: sessionId={}", sessionId);
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofSeconds(10))
+                    .DELETE()
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(
+                    request,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
+            );
+
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                log.warn("[Python AI] 벡터 컬렉션 삭제 응답 오류 — sessionId={} status={}",
+                        sessionId, response.statusCode());
+            } else {
+                log.info("[Python AI] 벡터 컬렉션 삭제 완료: sessionId={}", sessionId);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("[Python AI] 벡터 컬렉션 삭제 인터럽트: sessionId={}", sessionId);
+        } catch (Exception e) {
+            // 삭제 실패해도 면접 종료 흐름을 차단하지 않음
+            log.warn("[Python AI] 벡터 컬렉션 삭제 실패 (무시): sessionId={} error={}", sessionId, e.getMessage());
+        }
+    }
+
+    @Override
+    public DailyPracticeResultDto evaluateDailyPractice(String question, String answer) {
+        String url = aiServerUrl + "/interview/daily-practice";
+        log.debug("[Python AI] 오늘의 연습질문 평가 요청: question={}", question);
+
+        try {
+            DailyPracticeRequest request = new DailyPracticeRequest(question, answer);
+            DailyPracticeResponse response = post(url, request, DailyPracticeResponse.class);
+            return new DailyPracticeResultDto(response.score(), response.feedback());
+        } catch (RestClientException exception) {
+            log.error("[Python AI] 오늘의 연습질문 평가 실패", exception);
+            throw new AiServiceException("AI 서버 연습질문 평가 실패: " + exception.getMessage(), exception);
         }
     }
 
@@ -412,7 +505,10 @@ public class PythonAiService implements AiService {
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
-                    .timeout(Duration.ofSeconds(120))
+                    // 면접 종료 후 피드백은 질문/답변 전체 기록을 한 번에 분석하므로
+                    // 일반 질문 생성보다 훨씬 오래 걸릴 수 있습니다.
+                    // 120초에서는 긴 답변 세션이 503으로 끊길 수 있어 300초까지 허용합니다.
+                    .timeout(Duration.ofSeconds(600))
                     .header(HttpHeaders.CONTENT_TYPE, "application/json; charset=UTF-8")
                     .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                     .POST(HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8))

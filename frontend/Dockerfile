@@ -3,6 +3,10 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
+# API 주소를 빌드 인자로 받음 (Vite는 환경변수를 빌드 타임에 번들에 포함)
+ARG VITE_API_BASE_URL=http://localhost:8080
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+
 COPY package*.json ./
 RUN npm ci
 

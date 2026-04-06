@@ -4,7 +4,15 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <title>AI 면접 플랫폼</title>
+    <!--
+      카카오 우편번호 서비스 스크립트 (Daum Postcode v2)
+      - 주소 찾기 버튼을 처음 클릭할 때 스크립트를 동적으로 불러오면 지연이 생길 수 있어서
+        페이지 로드 시점에 미리 내려받도록 여기에 배치합니다.
+      - 무료 서비스이므로 별도 API 키가 필요하지 않습니다.
+      - postcodeSearchProvider.js에서 window.daum.Postcode 객체를 사용합니다.
+    -->
+    <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
   </head>
   <body>
     <div id="root"></div>

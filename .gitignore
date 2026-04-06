@@ -1,0 +1,63 @@
+# ── 환경 변수 / 비밀 키 ─────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Python ──────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+# pip 설치 아티팩트 (=0.x.x 형태 파일)
+=*
+
+# Python 로그
+ai-server/*.log
+ai-server/*.err.log
+ai-server/*.out.log
+
+# ── Node / Frontend ─────────────────────────────────────────
+node_modules/
+dist/
+.parcel-cache/
+
+# ── Java / Gradle ─────────────────────────────────────────
+# (backend 하위 .gitignore에도 동일 설정 존재)
+*.class
+*.jar
+
+# ── IDE ───────────────────────────────────────────────────
+.idea/
+*.iws
+*.iml
+*.ipr
+.vscode/
+
+# ── OS ────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── 프로젝트 루트 임시/아티팩트 파일 ─────────────────────────
+# UUID 형태로 생성된 업로드 이미지 아티팩트
+[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-*.jpg
+
+# 로컬 실행 로그와 점검 산출물은 깃에 올리지 않는다.
+*.log
+*.err.log
+*.out.log
+*.har
+*.png
+*.jpg
+*.jpeg
+*.zip
+
+# 로컬 보조 폴더
+.claude/
+uploads/
+
+# 로컬에서만 사용하는 보조 파일
+dashboard-storage.json
+ai-server/slowapi.env
+backend/ai-interview/src/main/resources/application.yaml
+requirements.txt
