@@ -570,7 +570,7 @@ function OrderSection({ orders, actionLoadingOrderId, onOrderAction }) {
         <article key={order.id} className="rounded-3xl border border-mentor-border p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-mentor-text">주문 #{order.id}</p>
+              <p className="text-sm font-semibold text-mentor-text">{buildOrderTitle(order)}</p>
               <p className="mt-1 text-sm text-mentor-muted">{formatDate(order.orderedAt)}</p>
               <p className="mt-1 text-sm text-mentor-muted">
                 {formatPostalAddress(order.postalCode, order.address) || order.address}
@@ -625,9 +625,14 @@ function OrderSection({ orders, actionLoadingOrderId, onOrderAction }) {
             <ActionButton
               loading={actionLoadingOrderId === order.id}
               disabled={!order.cancelEnabled}
-              label="주문 취소 요청"
+              label={order.status === 'PENDING' ? '주문 취소' : '주문 취소 요청'}
               onClick={() =>
-                setReasonModal({ orderId: order.id, actionType: 'cancel', title: '취소 요청 사유 선택', options: CANCEL_REASON_OPTIONS })
+                setReasonModal({
+                  orderId: order.id,
+                  actionType: 'cancel',
+                  title: order.status === 'PENDING' ? '주문 취소 사유 선택' : '취소 요청 사유 선택',
+                  options: CANCEL_REASON_OPTIONS,
+                })
               }
             />
           </div>
@@ -974,9 +979,33 @@ function buildOrderViewModel(order) {
     ...order,
     purchaseConfirmEnabled: order.status === 'DELIVERED',
     refundEnabled: order.status === 'DELIVERED' || order.status === 'PURCHASE_CONFIRMED',
-    cancelEnabled: order.status === 'PENDING' || order.status === 'PAID',
+    // 마이페이지에서도 결제 대기와 결제 완료 상태에서만 취소 버튼을 열어 둡니다.
+    cancelEnabled: ['PENDING', 'PAID'].includes(order.status),
     lastActionReason: order.lastActionReason ?? '',
   };
+}
+
+/**
+ * 구매내역 카드 제목을 대표 상품명 중심으로 보여 줍니다.
+ *
+ * [표시 규칙]
+ * - 한 권 주문: 상품명만 표시
+ * - 여러 권 주문: 대표 상품명 외 N권
+ * 대표 상품명이 없을 때만 예전처럼 주문 번호로 되돌아갑니다.
+ */
+function buildOrderTitle(order) {
+  const primaryBookTitle = order.primaryBookTitle?.trim();
+  const itemCount = Number(order.itemCount ?? 0);
+
+  if (!primaryBookTitle) {
+    return `주문 #${order.id}`;
+  }
+
+  if (itemCount <= 1) {
+    return primaryBookTitle;
+  }
+
+  return `${primaryBookTitle} 외 ${itemCount - 1}권`;
 }
 
 /**

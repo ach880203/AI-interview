@@ -206,9 +206,14 @@ export default function OrderPage() {
                   <ActionButton
                     loading={actionLoadingOrderId === order.id}
                     disabled={!order.cancelEnabled}
-                    label="주문 취소 요청"
+                    label={order.status === 'PENDING' ? '주문 취소' : '주문 취소 요청'}
                     onClick={() =>
-                      setReasonModal({ orderId: order.id, actionType: 'cancel', title: '취소 요청 사유 선택', options: CANCEL_REASON_OPTIONS })
+                      setReasonModal({
+                        orderId: order.id,
+                        actionType: 'cancel',
+                        title: order.status === 'PENDING' ? '주문 취소 사유 선택' : '취소 요청 사유 선택',
+                        options: CANCEL_REASON_OPTIONS,
+                      })
                     }
                   />
                 </div>
@@ -391,7 +396,8 @@ function buildOrderViewModel(order) {
     ...order,
     purchaseConfirmEnabled: order.status === 'DELIVERED',
     refundEnabled: order.status === 'DELIVERED' || order.status === 'PURCHASE_CONFIRMED',
-    cancelEnabled: order.status === 'PENDING' || order.status === 'PAID',
+    // 주문 취소는 결제 대기와 결제 완료 상태에서만 허용하고, 배송이 시작되면 바로 잠급니다.
+    cancelEnabled: ['PENDING', 'PAID'].includes(order.status),
     isCancelRequested: order.status === 'CANCEL_REQUESTED',
     isRefundRequested: order.status === 'REFUND_REQUESTED',
     lastActionReason: order.lastActionReason ?? '',

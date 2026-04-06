@@ -1,9 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import {
-  applyOrderPaymentResult,
-  getOrderDetail,
-} from '../../api/book';
+import { applyOrderPaymentResult, getOrderDetail } from '../../api/book';
 import OrderProgressSteps from '../../components/bookstore/OrderProgressSteps';
 import { clearOrderCheckoutDraft } from '../../data/orderCheckoutStorage';
 import { ORDER_STATUS_LABELS } from '../../data/orderStatusLabels';
@@ -14,8 +11,12 @@ import useCartStore from '../../store/cartStore';
  * 주문 결제 결과 선택 페이지입니다.
  *
  * [역할]
- * 실제 카카오페이 승인 콜백 대신,
- * 승인 / 실패 / 취소 중 하나를 선택해서 백엔드 상태 전환을 검증합니다.
+ * 개발 환경에서 승인, 실패, 취소 결과를 직접 선택해서
+ * 서버 상태 전환이 올바른지 검증합니다.
+ *
+ * [중요]
+ * 결제 취소는 구매내역 확인 흐름으로 보내지 않고 바로 종료해야 하므로
+ * 취소 선택 시 주문을 CANCELLED로 반영한 뒤 장바구니로 돌려보냅니다.
  */
 export default function OrderPaymentCallbackPage() {
   const location = useLocation();
@@ -53,13 +54,6 @@ export default function OrderPaymentCallbackPage() {
     fetchOrderDetail();
   }, [orderDetail, orderId]);
 
-  /**
-   * 사용자가 선택한 결제 결과를 서버에 반영합니다.
-   *
-   * [주의]
-   * 승인일 때만 장바구니와 주문서 초안을 비웁니다.
-   * 실패나 취소에서는 다시 시도할 수 있어야 하므로 초안을 남겨 둡니다.
-   */
   async function handleSelectPaymentResult(resultType, reason) {
     if (!orderId) {
       return;
@@ -79,6 +73,17 @@ export default function OrderPaymentCallbackPage() {
       if (resultType === 'APPROVED') {
         clearOrderCheckoutDraft();
         clearCart();
+        navigate(`/orders/complete/${updatedOrder.id}`, {
+          replace: true,
+          state: { createdOrder: updatedOrder },
+        });
+        return;
+      }
+
+      if (resultType === 'CANCELLED') {
+        clearOrderCheckoutDraft();
+        navigate('/cart', { replace: true });
+        return;
       }
 
       navigate(`/orders/complete/${updatedOrder.id}`, {
@@ -146,11 +151,10 @@ export default function OrderPaymentCallbackPage() {
         <section className="rounded-[32px] bg-mentor-surface p-7 shadow-sm">
           <p className="text-sm font-semibold text-mentor-primary">모의 결제 결과</p>
           <h1 className="mt-3 text-3xl font-bold text-mentor-text">
-            카카오페이 결제 결과를 선택해 주문 상태를 반영해 주세요.
+            결제 결과를 선택해 주문 상태를 반영해 주세요
           </h1>
           <p className="mt-3 text-sm leading-6 text-mentor-muted">
-            실제 운영에서는 PG 승인 콜백이 이 자리를 대신합니다. 지금은 결과를 직접 고르면서
-            승인, 실패, 취소 흐름이 화면과 서버에 모두 남는지 검증합니다.
+            실제 운영에서는 PG 콜백이 대신 처리하는 부분입니다. 지금은 승인, 실패, 취소 흐름을 직접 검증합니다.
           </p>
         </section>
 
@@ -175,17 +179,17 @@ export default function OrderPaymentCallbackPage() {
               </span>
             </div>
 
-              <div className="mt-6 grid gap-4 md:grid-cols-2">
-                <DetailTile label="주문자 이름" value={orderDetail?.ordererName} />
-                <DetailTile label="주문자 연락처" value={orderDetail?.ordererPhone} />
-                <DetailTile label="우편번호" value={orderDetail?.postalCode ?? '미기록'} />
-                <DetailTile
-                  label="배송지"
-                  value={formatPostalAddress(orderDetail?.postalCode, orderDetail?.address) || orderDetail?.address}
-                />
-                <DetailTile
-                  label="총 결제 예정 금액"
-                  value={`${(orderDetail?.totalPrice ?? 0).toLocaleString('ko-KR')}원`}
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <DetailTile label="주문자 이름" value={orderDetail?.ordererName} />
+              <DetailTile label="주문자 연락처" value={orderDetail?.ordererPhone} />
+              <DetailTile label="우편번호" value={orderDetail?.postalCode ?? '미기록'} />
+              <DetailTile
+                label="배송지"
+                value={formatPostalAddress(orderDetail?.postalCode, orderDetail?.address) || orderDetail?.address}
+              />
+              <DetailTile
+                label="총 결제 예정 금액"
+                value={`${(orderDetail?.totalPrice ?? 0).toLocaleString('ko-KR')}원`}
               />
             </div>
 
@@ -215,8 +219,8 @@ export default function OrderPaymentCallbackPage() {
             <section className="rounded-[28px] bg-mentor-primary p-6 text-white shadow-sm">
               <h2 className="text-lg font-bold">결제 결과 선택</h2>
               <p className="mt-3 text-sm leading-6 text-white/80">
-                같은 주문에 재고가 이미 잡혀 있으므로, 결과는 한 번만 선택할 수 있습니다.
-                승인 시 주문이 완료되고, 실패나 취소 시 재고가 자동으로 복구됩니다.
+                승인되면 주문이 결제 완료로 확정되고, 실패는 실패 기록으로 남습니다. 취소는 주문을 바로
+                종료하고 장바구니로 돌아갑니다.
               </p>
 
               {isPendingOrder ? (
@@ -255,7 +259,6 @@ export default function OrderPaymentCallbackPage() {
               ) : (
                 <div className="mt-6 rounded-2xl bg-white/10 px-4 py-4 text-sm leading-6 text-white/85">
                   이 주문은 이미 {ORDER_STATUS_LABELS[orderDetail?.status] ?? orderDetail?.status} 상태입니다.
-                  결과 화면에서 최신 내용을 확인해 주세요.
                 </div>
               )}
 
@@ -283,9 +286,6 @@ export default function OrderPaymentCallbackPage() {
   );
 }
 
-/**
- * 주문 요약 타일입니다.
- */
 function DetailTile({ label, value }) {
   return (
     <div className="rounded-3xl border border-mentor-border bg-mentor-bg px-5 py-5">

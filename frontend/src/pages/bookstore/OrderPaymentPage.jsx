@@ -1,14 +1,13 @@
 import * as PortOne from '@portone/browser-sdk/v2';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createOrder, verifyOrderPayment } from '../../api/book';
+import { applyOrderPaymentResult, createOrder, verifyOrderPayment } from '../../api/book';
 import OrderProgressSteps from '../../components/bookstore/OrderProgressSteps';
 import { clearOrderCheckoutDraft, loadOrderCheckoutDraft } from '../../data/orderCheckoutStorage';
 import useAuthStore from '../../store/authStore';
 import useCartStore from '../../store/cartStore';
 import { formatFullAddress } from '../../utils/addressUtils';
 
-/** PortOne 스토어 ID가 설정되어 있으면 실제 결제창을 사용합니다. */
 const PORTONE_STORE_ID = import.meta.env.VITE_PORTONE_STORE_ID;
 const PORTONE_CHANNEL_KEY = import.meta.env.VITE_PORTONE_CHANNEL_KEY;
 
@@ -16,18 +15,24 @@ const PORTONE_CHANNEL_KEY = import.meta.env.VITE_PORTONE_CHANNEL_KEY;
  * 주문 결제 확인 페이지입니다.
  *
  * [역할]
- * 주문서를 마지막으로 확인하고,
- * 실제 결제 결과 선택 화면으로 넘어가기 전에 결제 대기 주문을 먼저 생성합니다.
+ * 1. 결제 전 주문 정보를 마지막으로 확인합니다.
+ * 2. 서버에 결제 대기 주문을 먼저 생성합니다.
+ * 3. PortOne 실제 결제 또는 모의 결제 결과 화면으로 이어 줍니다.
+ *
+ * [중요]
+ * 결제창에서 취소하고 닫았을 때 PENDING 주문이 구매내역에 남으면
+ * 사용자는 "결제도 안 했는데 주문이 생겼다"고 느끼게 됩니다.
+ * 그래서 실제 결제창 취소도 서버에 즉시 CANCELLED로 반영합니다.
  */
 export default function OrderPaymentPage() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
+  const clearCart = useCartStore((state) => state.clearCart);
 
   const [orderCheckoutDraft] = useState(() => loadOrderCheckoutDraft());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const clearCart = useCartStore((state) => state.clearCart);
 
   const itemTotalPrice = useMemo(() => {
     return (orderCheckoutDraft?.items ?? []).reduce(
@@ -36,22 +41,9 @@ export default function OrderPaymentPage() {
     );
   }, [orderCheckoutDraft]);
 
-  /**
-   * 결제를 시작합니다.
-   *
-   * [분기]
-   * - VITE_PORTONE_STORE_ID가 설정된 경우: PortOne SDK 실제 결제창 호출
-   * - 설정되지 않은 경우: 모의 결제 콜백 페이지로 이동 (로컬 개발용)
-   *
-   * [PortOne V2 흐름]
-   * 1. 주문 생성 (PENDING)
-   * 2. PortOne SDK requestPayment() 호출 → 카카오페이 결제창
-   * 3. 결제 완료 후 paymentId를 백엔드에 전송
-   * 4. 백엔드에서 PortOne API 직접 조회 → 금액·상태 검증 → PAID 확정
-   */
   async function handleStartPayment() {
     if (!orderCheckoutDraft?.items?.length) {
-      setError('결제에 사용할 주문서 정보가 없습니다. 장바구니와 주문서를 다시 확인해 주세요.');
+      setError('결제에 사용할 주문 정보가 없습니다. 장바구니와 주문서를 다시 확인해 주세요.');
       return;
     }
 
@@ -59,7 +51,6 @@ export default function OrderPaymentPage() {
     setError('');
 
     try {
-      // 1단계: 결제 대기 주문 생성
       const response = await createOrder({
         ordererName: orderCheckoutDraft.ordererName,
         ordererPhone: orderCheckoutDraft.ordererPhone,
@@ -85,20 +76,19 @@ export default function OrderPaymentPage() {
         });
       }
 
-      // 2단계: PortOne 설정 여부에 따라 분기
       if (PORTONE_STORE_ID) {
         await handlePortOnePayment(createdOrder);
       } else {
-        // 모의 결제 흐름 (로컬 개발용)
         navigate(`/orders/payment/callback/${createdOrder.id}`, {
           replace: true,
           state: { createdOrder },
         });
       }
     } catch (requestError) {
-      if (requestError?.isPortOneError) {
-        return; // PortOne 에러는 내부에서 이미 처리됨
+      if (requestError?.isPortOneHandled) {
+        return;
       }
+
       setError(
         requestError.response?.data?.error?.message ??
           '결제 준비 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.'
@@ -109,14 +99,14 @@ export default function OrderPaymentPage() {
   }
 
   /**
-   * PortOne SDK로 실제 결제창을 호출하고 결과를 검증합니다.
+   * PortOne 실제 결제를 시작합니다.
    *
-   * [paymentId 형식]
-   * "order_{orderId}_{timestamp}" — PortOne에서 각 결제를 식별하는 고유 ID
+   * [중요]
+   * 사용자가 결제창을 닫거나 취소하면 서버 주문도 바로 정리해야
+   * 결제 대기 주문이 구매내역에 남지 않습니다.
    */
   async function handlePortOnePayment(createdOrder) {
     const paymentId = `order_${createdOrder.id}_${Date.now()}`;
-
     const orderName =
       orderCheckoutDraft.items.length === 1
         ? orderCheckoutDraft.items[0].bookTitle
@@ -134,12 +124,32 @@ export default function OrderPaymentPage() {
     });
 
     if (paymentResponse?.code) {
-      // 사용자가 결제창을 닫거나 결제 실패
-      setError(`결제가 취소되었거나 실패했습니다. (${paymentResponse.message ?? paymentResponse.code})`);
-      throw { isPortOneError: true };
+      const isCancelledByUser = isCancelledPaymentResponse(paymentResponse);
+
+      await applyOrderPaymentResult(createdOrder.id, {
+        resultType: isCancelledByUser ? 'CANCELLED' : 'FAILED',
+        reason: paymentResponse.message ?? paymentResponse.code,
+      });
+
+      if (isCancelledByUser) {
+        clearOrderCheckoutDraft();
+        navigate('/cart', { replace: true });
+        throw { isPortOneHandled: true };
+      }
+
+      navigate(`/orders/complete/${createdOrder.id}`, {
+        replace: true,
+        state: {
+          createdOrder: {
+            ...createdOrder,
+            status: 'PAYMENT_FAILED',
+            lastActionReason: paymentResponse.message ?? paymentResponse.code,
+          },
+        },
+      });
+      throw { isPortOneHandled: true };
     }
 
-    // 3단계: 백엔드 서버사이드 검증
     const verifyResponse = await verifyOrderPayment(createdOrder.id, { paymentId });
     const confirmedOrder = verifyResponse.data?.data ?? verifyResponse.data;
 
@@ -158,7 +168,7 @@ export default function OrderPaymentPage() {
         <div className="mx-auto max-w-5xl space-y-6">
           <OrderProgressSteps currentStep={3} />
           <section className="rounded-[32px] bg-mentor-surface px-6 py-20 text-center shadow-sm">
-            <p className="text-lg font-semibold text-mentor-text">결제에 사용할 주문서 정보가 없습니다.</p>
+            <p className="text-lg font-semibold text-mentor-text">결제에 사용할 주문 정보가 없습니다.</p>
             <p className="mt-2 text-sm text-mentor-muted">
               주문서를 먼저 작성한 뒤 결제 단계로 다시 이동해 주세요.
             </p>
@@ -188,11 +198,11 @@ export default function OrderPaymentPage() {
         <section className="rounded-[32px] bg-mentor-surface p-7 shadow-sm">
           <p className="text-sm font-semibold text-mentor-primary">결제 진행</p>
           <h1 className="mt-3 text-3xl font-bold text-mentor-text">
-            결제 전에 주문 정보를 마지막으로 확인해 주세요.
+            결제 전에 주문 정보를 마지막으로 확인해 주세요
           </h1>
           <p className="mt-3 text-sm leading-6 text-mentor-muted">
-            이 화면에서는 결제 대기 주문을 먼저 만들고, 다음 단계에서 카카오페이 승인 결과를
-            시뮬레이션합니다. 실제 PG를 붙일 때도 이 화면은 결제 진입점 역할을 그대로 유지합니다.
+            이 화면에서는 결제 대기 주문을 먼저 만든 뒤, 다음 단계에서 카카오페이 승인 또는 취소 결과를
+            반영합니다.
           </p>
         </section>
 
@@ -254,8 +264,8 @@ export default function OrderPaymentPage() {
               <div className="mt-5 rounded-2xl border border-mentor-primary bg-mentor-accent/60 px-4 py-4">
                 <p className="text-sm font-semibold text-mentor-text">카카오페이</p>
                 <p className="mt-1 text-xs leading-5 text-mentor-muted">
-                  다음 화면에서 카카오페이 결제 결과를 모의로 선택합니다. 실제 운영 시에는 이 자리에
-                  결제창 호출과 승인 콜백이 연결됩니다.
+                  실제 운영 시에는 카카오페이 결제창이 열리고, 개발 환경에서는 다음 화면에서 승인 또는 취소
+                  흐름을 검증합니다.
                 </p>
               </div>
             </section>
@@ -293,7 +303,7 @@ export default function OrderPaymentPage() {
                   </span>
                 </div>
                 <p className="mt-2 text-xs text-white/70">
-                  주문은 먼저 결제 대기 상태로 만들어지고, 다음 단계에서 승인 또는 취소 결과가 반영됩니다.
+                  결제창에서 취소하면 주문도 바로 취소 처리되어 구매내역 흐름에 매달리지 않게 정리합니다.
                 </p>
               </div>
 
@@ -320,9 +330,6 @@ export default function OrderPaymentPage() {
   );
 }
 
-/**
- * 결제 정보 타일입니다.
- */
 function PaymentInfoTile({ label, value }) {
   return (
     <div className="rounded-3xl border border-mentor-border bg-mentor-bg px-5 py-5">
@@ -332,9 +339,6 @@ function PaymentInfoTile({ label, value }) {
   );
 }
 
-/**
- * 결제 요약 행입니다.
- */
 function PaymentSummaryRow({ label, value }) {
   return (
     <div className="flex items-start justify-between gap-4">
@@ -350,4 +354,9 @@ function formatPaymentMethod(paymentMethod) {
   }
 
   return paymentMethod ?? '확인 필요';
+}
+
+function isCancelledPaymentResponse(paymentResponse) {
+  const rawMessage = `${paymentResponse?.code ?? ''} ${paymentResponse?.message ?? ''}`.toLowerCase();
+  return rawMessage.includes('cancel') || rawMessage.includes('취소');
 }

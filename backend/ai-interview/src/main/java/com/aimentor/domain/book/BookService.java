@@ -11,6 +11,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 /**
  * 도서 비즈니스 로직 서비스
  *
@@ -42,6 +44,21 @@ public class BookService {
     /** 도서 단건 조회 */
     public BookResponseDto getBook(Long bookId) {
         return BookResponseDto.from(findEntityById(bookId));
+    }
+
+    /**
+     * 여러 도서를 한 번에 조회합니다.
+     *
+     * [이유]
+     * 주문 목록처럼 대표 상품명을 여러 건 동시에 보여줄 때
+     * 도서를 하나씩 조회하면 불필요한 반복 조회가 생겨서 배치 조회를 따로 둡니다.
+     */
+    public List<BookEntity> findBooksByIds(List<Long> bookIds) {
+        if (bookIds == null || bookIds.isEmpty()) {
+            return List.of();
+        }
+
+        return bookRepository.findAllById(bookIds);
     }
 
     // ──────────────────────────────────────────────────

@@ -19,7 +19,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 주문 비즈니스 로직 서비스입니다.
@@ -178,9 +182,12 @@ public class OrderService {
      */
     public List<OrderResponseDto> getOrders(String email) {
         UserEntity user = getUser(email);
-        return orderRepository.findByUserOrderByOrderedAtDesc(user)
-                .stream()
-                .map(OrderResponseDto::from)
+        List<OrderEntity> orders = orderRepository.findByUserOrderByOrderedAtDesc(user);
+        Map<Long, List<OrderItemEntity>> orderItemsByOrderId = getOrderItemsByOrderId(orders);
+        Map<Long, BookEntity> booksById = getBooksById(orderItemsByOrderId.values());
+
+        return orders.stream()
+                .map(order -> buildOrderSummary(order, orderItemsByOrderId.get(order.getId()), booksById))
                 .toList();
     }
 
@@ -212,7 +219,14 @@ public class OrderService {
                 "결제 완료 전 주문과 결제 완료 주문만 취소 요청할 수 있습니다."
         );
 
-        order.requestCancel(request.reason());
+        // 결제 대기 상태는 실제 승인 전 단계라서 사용자가 취소하면 바로 종료해도 안전합니다.
+        if (order.getStatus() == OrderEntity.OrderStatus.PENDING) {
+            restoreOrderItemStocks(order.getId());
+            order.cancel(request.reason());
+        } else {
+            // 결제 완료 이후 취소는 관리자 확인이 필요한 흐름으로 유지합니다.
+            order.requestCancel(request.reason());
+        }
         return buildOrderDetail(order);
     }
 
@@ -307,6 +321,82 @@ public class OrderService {
     private void restoreOrderItemStocks(Long orderId) {
         orderItemRepository.findByOrderId(orderId)
                 .forEach(item -> bookService.increaseStock(item.getBookId(), item.getQuantity()));
+    }
+
+    /**
+     * 주문 목록 화면에서 대표 상품명을 만들기 위해 주문 항목을 주문 ID 기준으로 다시 묶습니다.
+     *
+     * [이유]
+     * 주문마다 개별 조회를 하면 주문 수가 많을수록 느려지기 쉬워서
+     * 한 번에 읽은 뒤 메모리에서 다시 나누는 방식으로 정리합니다.
+     */
+    private Map<Long, List<OrderItemEntity>> getOrderItemsByOrderId(List<OrderEntity> orders) {
+        if (orders.isEmpty()) {
+            return Map.of();
+        }
+
+        List<Long> orderIds = orders.stream()
+                .map(OrderEntity::getId)
+                .toList();
+
+        return orderItemRepository.findByOrderIdIn(orderIds)
+                .stream()
+                .collect(Collectors.groupingBy(item -> item.getOrder().getId()));
+    }
+
+    /**
+     * 주문 항목에서 참조하는 도서 정보를 한 번에 읽어 옵니다.
+     *
+     * [주의]
+     * 삭제된 도서는 맵에 없을 수 있으므로, 제목 계산에서는 항상 null 가능성을 같이 처리합니다.
+     */
+    private Map<Long, BookEntity> getBooksById(Collection<List<OrderItemEntity>> orderItemsGroups) {
+        List<Long> bookIds = orderItemsGroups.stream()
+                .flatMap(Collection::stream)
+                .map(OrderItemEntity::getBookId)
+                .distinct()
+                .toList();
+
+        return bookService.findBooksByIds(bookIds)
+                .stream()
+                .collect(Collectors.toMap(BookEntity::getId, Function.identity()));
+    }
+
+    /**
+     * 주문 목록에 필요한 대표 상품명과 상품 수를 함께 조립합니다.
+     *
+     * [표시 의도]
+     * 마이페이지에서는 주문 번호보다 어떤 책을 샀는지가 먼저 보여야
+     * 사용자가 구매내역을 훨씬 빨리 구분할 수 있습니다.
+     */
+    private OrderResponseDto buildOrderSummary(
+            OrderEntity order,
+            List<OrderItemEntity> orderItems,
+            Map<Long, BookEntity> booksById
+    ) {
+        List<OrderItemEntity> safeOrderItems = orderItems == null ? List.of() : orderItems;
+
+        return OrderResponseDto.from(
+                order,
+                resolvePrimaryBookTitle(safeOrderItems, booksById),
+                safeOrderItems.size()
+        );
+    }
+
+    /**
+     * 주문 목록에 보여줄 대표 상품명을 계산합니다.
+     */
+    private String resolvePrimaryBookTitle(List<OrderItemEntity> orderItems, Map<Long, BookEntity> booksById) {
+        if (orderItems.isEmpty()) {
+            return "상품 정보 없음";
+        }
+
+        BookEntity firstBook = booksById.get(orderItems.getFirst().getBookId());
+        if (firstBook == null || firstBook.getTitle() == null || firstBook.getTitle().isBlank()) {
+            return "상품 정보 없음";
+        }
+
+        return firstBook.getTitle();
     }
 
     /**

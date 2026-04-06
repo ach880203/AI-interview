@@ -13,6 +13,8 @@ public record OrderResponseDto(
         Long id,
         int totalPrice,
         OrderEntity.OrderStatus status,
+        String primaryBookTitle,
+        int itemCount,
         String postalCode,
         String address,
         String ordererName,
@@ -21,11 +23,13 @@ public record OrderResponseDto(
         LocalDateTime orderedAt,
         LocalDateTime createdAt
 ) {
-    public static OrderResponseDto from(OrderEntity order) {
+    public static OrderResponseDto from(OrderEntity order, String primaryBookTitle, int itemCount) {
         return new OrderResponseDto(
                 order.getId(),
                 order.getTotalPrice(),
                 order.getStatus(),
+                primaryBookTitle,
+                itemCount,
                 order.getPostalCode(),
                 order.getAddress(),
                 order.getOrdererName(),

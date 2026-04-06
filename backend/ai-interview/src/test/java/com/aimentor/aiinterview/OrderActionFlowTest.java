@@ -98,7 +98,7 @@ class OrderActionFlowTest {
                         .content(objectMapper.writeValueAsString(cancelRequest)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.status").value("CANCEL_REQUESTED"));
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"));
     }
 
     @Test
