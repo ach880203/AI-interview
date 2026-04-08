@@ -1,11 +1,11 @@
-const SUBSCRIPTION_CHECKOUT_STORAGE_KEY = 'ai_interview_subscription_checkout';
+﻿const SUBSCRIPTION_CHECKOUT_STORAGE_KEY = 'ai_interview_subscription_checkout';
 
 /**
- * 구독 결제 직전 선택 정보를 세션 단위로 저장합니다.
+ * 援щ룆 寃곗젣 吏곸쟾 ?좏깮 ?뺣낫瑜??몄뀡 ?⑥쐞濡???ν빀?덈떎.
  *
- * [주의]
- * 브라우저 탭을 닫으면 자연스럽게 초기화되도록 sessionStorage를 사용합니다.
- * 주문 정보처럼 장기간 남길 필요가 없는 임시 결제 흐름이기 때문입니다.
+ * [二쇱쓽]
+ * 釉뚮씪?곗? ??쓣 ?レ쑝硫??먯뿰?ㅻ읇寃?珥덇린?붾릺?꾨줉 sessionStorage瑜??ъ슜?⑸땲??
+ * 二쇰Ц ?뺣낫泥섎읆 ?κ린媛??④만 ?꾩슂媛 ?녿뒗 ?꾩떆 寃곗젣 ?먮쫫?닿린 ?뚮Ц?낅땲??
  */
 export function saveSubscriptionCheckoutDraft(subscriptionCheckoutDraft) {
   sessionStorage.setItem(
@@ -15,7 +15,7 @@ export function saveSubscriptionCheckoutDraft(subscriptionCheckoutDraft) {
 }
 
 /**
- * 저장된 구독 결제 초안을 불러옵니다.
+ * ??λ맂 援щ룆 寃곗젣 珥덉븞??遺덈윭?듬땲??
  */
 export function loadSubscriptionCheckoutDraft() {
   const rawValue = sessionStorage.getItem(SUBSCRIPTION_CHECKOUT_STORAGE_KEY);
@@ -26,10 +26,9 @@ export function loadSubscriptionCheckoutDraft() {
 
   try {
     return JSON.parse(rawValue);
-  } catch (error) {
+  } catch {
     /**
-     * 저장 형식이 바뀌었거나 값이 깨졌을 때 이전 데이터를 버리고
-     * 새 구독 흐름을 다시 시작할 수 있게 정리합니다.
+     * ????뺤떇??諛붾뚯뿀嫄곕굹 媛믪씠 源⑥죱?????댁쟾 ?곗씠?곕? 踰꾨━怨?     * ??援щ룆 ?먮쫫???ㅼ떆 ?쒖옉?????덇쾶 ?뺣━?⑸땲??
      */
     sessionStorage.removeItem(SUBSCRIPTION_CHECKOUT_STORAGE_KEY);
     return null;
@@ -37,8 +36,9 @@ export function loadSubscriptionCheckoutDraft() {
 }
 
 /**
- * 결제가 끝난 뒤 구독 결제 초안을 비웁니다.
+ * 寃곗젣媛 ?앸궃 ??援щ룆 寃곗젣 珥덉븞??鍮꾩썎?덈떎.
  */
 export function clearSubscriptionCheckoutDraft() {
   sessionStorage.removeItem(SUBSCRIPTION_CHECKOUT_STORAGE_KEY);
 }
+

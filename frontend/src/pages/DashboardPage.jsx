@@ -352,7 +352,7 @@ export default function DashboardPage() {
     return () => {
       shouldIgnore = true;
     };
-  }, [userStorageKey]);
+  }, []);
 
   const [layouts, setLayouts] = useState(() => loadSavedLayouts(userStorageKey));
   const [editMode, setEditMode] = useState(false);
@@ -367,7 +367,7 @@ export default function DashboardPage() {
     setLastWidgetLayouts(loadLastWidgetLayouts(userStorageKey));
     setShowWidgetSelector(false);
     setEditMode(false);
-  }, [userStorageKey]);
+  }, []);
 
   const gridContainerRef = useRef(null);
   const [gridWidth, setGridWidth] = useState(1200);
@@ -383,7 +383,7 @@ export default function DashboardPage() {
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [userStorageKey]);
 
   /**
    * 편집 모드가 아닐 때 모든 위젯을 static: true로 잠급니다.
@@ -403,7 +403,11 @@ export default function DashboardPage() {
     // static 플래그를 제거한 원본만 저장 (편집 모드 진입 시 다시 풀어야 하므로)
     const cleaned = {};
     for (const bp of Object.keys(allLayouts)) {
-      cleaned[bp] = (allLayouts[bp] || []).map(({ static: _s, ...rest }) => rest);
+      cleaned[bp] = (allLayouts[bp] || []).map((item) => {
+        const nextItem = { ...item };
+        delete nextItem.static;
+        return nextItem;
+      });
     }
     setLayouts(cleaned);
     try {
@@ -411,7 +415,7 @@ export default function DashboardPage() {
     } catch {
       // localStorage 용량 초과 시 무시
     }
-  }, []);
+  }, [userStorageKey]);
 
   function handleHideAll() {
     const removableIds = DASHBOARD_WIDGETS.filter((w) => w.removable).map((w) => w.id);
@@ -436,7 +440,11 @@ export default function DashboardPage() {
         if (item) snapshot[bp] = { x: item.x, y: item.y, w: item.w, h: item.h };
       });
       const next = { ...prev, [widgetId]: snapshot };
-      try { localStorage.setItem(buildDashboardStorageKey(LAST_LAYOUT_SNAPSHOT_KEY, userStorageKey), JSON.stringify(next)); } catch {}
+      try {
+        localStorage.setItem(buildDashboardStorageKey(LAST_LAYOUT_SNAPSHOT_KEY, userStorageKey), JSON.stringify(next));
+      } catch {
+        /* 저장 실패는 화면 동작보다 중요하지 않아 무시합니다. */
+      }
       return next;
     });
 
@@ -445,13 +453,21 @@ export default function DashboardPage() {
       ['lg', 'md', 'sm'].forEach((bp) => {
         next[bp] = (prev[bp] || []).filter((l) => l.i !== widgetId);
       });
-      try { localStorage.setItem(buildDashboardStorageKey(LAYOUT_STORAGE_KEY, userStorageKey), JSON.stringify(next)); } catch {}
+      try {
+        localStorage.setItem(buildDashboardStorageKey(LAYOUT_STORAGE_KEY, userStorageKey), JSON.stringify(next));
+      } catch {
+        /* 저장 실패는 화면 동작보다 중요하지 않아 무시합니다. */
+      }
       return next;
     });
 
     setHiddenWidgetIds((prev) => {
       const next = [...prev, widgetId];
-      try { localStorage.setItem(buildDashboardStorageKey(HIDDEN_WIDGET_STORAGE_KEY, userStorageKey), JSON.stringify(next)); } catch {}
+      try {
+        localStorage.setItem(buildDashboardStorageKey(HIDDEN_WIDGET_STORAGE_KEY, userStorageKey), JSON.stringify(next));
+      } catch {
+        /* 저장 실패는 화면 동작보다 중요하지 않아 무시합니다. */
+      }
       return next;
     });
   }, [layouts, userStorageKey]);
@@ -486,13 +502,21 @@ export default function DashboardPage() {
         }
         next[bp] = [...existingItems, newItem];
       });
-      try { localStorage.setItem(buildDashboardStorageKey(LAYOUT_STORAGE_KEY, userStorageKey), JSON.stringify(next)); } catch {}
+      try {
+        localStorage.setItem(buildDashboardStorageKey(LAYOUT_STORAGE_KEY, userStorageKey), JSON.stringify(next));
+      } catch {
+        /* 저장 실패는 화면 동작보다 중요하지 않아 무시합니다. */
+      }
       return next;
     });
 
     setHiddenWidgetIds((prev) => {
       const next = prev.filter((id) => id !== widgetId);
-      try { localStorage.setItem(buildDashboardStorageKey(HIDDEN_WIDGET_STORAGE_KEY, userStorageKey), JSON.stringify(next)); } catch {}
+      try {
+        localStorage.setItem(buildDashboardStorageKey(HIDDEN_WIDGET_STORAGE_KEY, userStorageKey), JSON.stringify(next));
+      } catch {
+        /* 저장 실패는 화면 동작보다 중요하지 않아 무시합니다. */
+      }
       return next;
     });
 
@@ -508,6 +532,8 @@ export default function DashboardPage() {
     (session) => session.status === 'COMPLETED'
   ).length;
   const recentSessions = dashboardData.sessions.slice(0, 4);
+  const recentAttempts = dashboardData.learningStats.recentAttempts ?? [];
+  const showRecentLearningWidget = false;
   const weakCategories = [...dashboardData.analyticsCategories]
     .sort((left, right) => {
       if (left.isWeak !== right.isWeak) return left.isWeak ? -1 : 1;
@@ -914,7 +940,7 @@ export default function DashboardPage() {
             )}
 
             {/* 최근 학습 기록 위젯 */}
-            {false && !hiddenWidgetIds.includes('recent-learning') && (
+            {showRecentLearningWidget && !hiddenWidgetIds.includes('recent-learning') && (
               <div key="recent-learning">
                 <DraggableWidgetWrapper
                   editMode={editMode}

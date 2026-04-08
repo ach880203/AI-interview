@@ -89,7 +89,6 @@ export default function AdminPage() {
 
   /* ── 매출 통계 상태 ── */
   const [revenue, setRevenue] = useState(null);
-  const [loadingRevenue, setLoadingRevenue] = useState(false);
   const [revenueCalendarDate, setRevenueCalendarDate] = useState(() => {
     const today = new Date();
     return today.toISOString().slice(0, 10);
@@ -242,7 +241,6 @@ export default function AdminPage() {
    * 매출관리 탭 진입 시 자동 호출됩니다.
    */
   const refreshRevenue = useCallback(async () => {
-    setLoadingRevenue(true);
     try {
       const response = await adminApi.getAdminRevenue();
       setRevenue(response.data.data ?? null);
@@ -252,7 +250,7 @@ export default function AdminPage() {
           '매출 통계를 불러오지 못했습니다.'
       );
     } finally {
-      setLoadingRevenue(false);
+      /* 매출 탭은 기존 loading 상태로 충분히 구분되어 별도 로딩 상태를 두지 않습니다. */
     }
   }, []);
 

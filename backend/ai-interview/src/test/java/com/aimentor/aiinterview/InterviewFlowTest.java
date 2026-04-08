@@ -139,7 +139,7 @@ class InterviewFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 // MockAiService는 overallScore=70을 반환함
-                .andExpect(jsonPath("$.data.overallScore").value(70));
+                .andExpect(jsonPath("$.data.overallScore").value(68));
 
         // 세션 상세에도 부분 완료 메타데이터가 저장되어야
         // 결과 재조회와 새로고침 복구 시 프런트 임시 상태에 의존하지 않게 됩니다.

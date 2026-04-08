@@ -82,12 +82,12 @@ export default function DailyPracticeWidget({ loading: parentLoading }) {
       const data = res.data.data;
       setResult(data);
       saveTodayState({ answer: answer.trim(), result: data }, userStorageKey);
-    } catch (err) {
+    } catch {
       setError('평가에 실패했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
       setSubmitting(false);
     }
-  }, [answer, question]);
+  }, [answer, question, userStorageKey]);
 
   const handleReset = useCallback(() => {
     setAnswer('');

@@ -583,7 +583,7 @@ function renderDescription(text) {
     if (currentSection.length === 0) return;
     elements.push(
       <p key={`body-${keyIdx++}`} className="whitespace-pre-wrap text-mentor-muted">
-        {currentSection.join('\n')}
+        {linkifyText(currentSection.join('\n'))}
       </p>
     );
     currentSection = [];
