@@ -7,12 +7,14 @@ services:
     environment:
       MARIADB_ROOT_PASSWORD: ${DB_PASSWORD}
       MARIADB_DATABASE: ${MARIADB_DATABASE:-ai_interview}
-      MARIADB_USER: ${DB_USERNAME:-aiapp}
-      MARIADB_PASSWORD: ${DB_PASSWORD}
+      # 초기 DB 생성 시 전용 앱 계정을 명시적으로 만드는 init 스크립트에서 사용할 값입니다.
+      APP_DB_USERNAME: ${DB_USERNAME:-aiapp}
+      APP_DB_PASSWORD: ${DB_PASSWORD}
       MARIADB_CHARACTER_SET_SERVER: utf8mb4
       MARIADB_COLLATION_SERVER: utf8mb4_unicode_ci
     volumes:
       - mariadb_data:/var/lib/mysql
+      - ./mariadb-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       start_period: 20s
