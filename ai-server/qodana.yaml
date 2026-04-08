@@ -1,0 +1,9 @@
+version: "1.0"
+linter: qodana-python-community
+
+# 왜 이렇게 했는지:
+# - 파이썬 import 해석 품질을 올리기 위해 의존성을 먼저 설치합니다.
+# - 한글 문서/프롬프트 파일은 분석 대상이 아니므로 코드 품질 검증에만 집중합니다.
+
+bootstrap: |
+  pip install -r requirements.txt

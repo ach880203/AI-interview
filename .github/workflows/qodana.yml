@@ -1,0 +1,79 @@
+name: qodana
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  qodana-backend:
+    name: qodana-backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: qodana-scan-backend
+        uses: JetBrains/qodana-action@v2025.3
+        with:
+          # 공식 문서 기준으로 monorepo에서는 별도 workflow와 경로 지정 구성이 자연스럽습니다.
+          args: --config,backend/ai-interview/qodana.yaml,-i,backend/ai-interview,--image,jetbrains/qodana-jvm-community:2025.3
+          use-annotations: true
+          upload-result: true
+          artifact-name: qodana-backend-report
+          cache-default-branch-only: true
+          github-token: ${{ github.token }}
+
+  qodana-ai-server:
+    name: qodana-ai-server
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: qodana-scan-ai-server
+        uses: JetBrains/qodana-action@v2025.3
+        with:
+          args: --config,ai-server/qodana.yaml,-i,ai-server,--image,jetbrains/qodana-python-community:2025.3
+          use-annotations: true
+          upload-result: true
+          artifact-name: qodana-ai-server-report
+          cache-default-branch-only: true
+          github-token: ${{ github.token }}
+
+  qodana-frontend:
+    name: qodana-frontend
+    if: ${{ vars.ENABLE_QODANA_JS == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: qodana-scan-frontend
+        uses: JetBrains/qodana-action@v2025.3
+        with:
+          # 프론트엔드는 Qodana JS 라이선스가 필요할 수 있으므로 변수로 켜고 끌 수 있게 둡니다.
+          args: --config,frontend/qodana.yaml,-i,frontend,--image,jetbrains/qodana-js:2025.3
+          use-annotations: true
+          upload-result: true
+          artifact-name: qodana-frontend-report
+          cache-default-branch-only: true
+          github-token: ${{ github.token }}
+        env:
+          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}

@@ -61,3 +61,20 @@ dashboard-storage.json
 ai-server/slowapi.env
 backend/ai-interview/src/main/resources/application.yaml
 requirements.txt
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+crash.log
+
+# 문서 파일은 루트 README.md 만 Git에 포함합니다.
+# 배포 운영 중 생성되거나 누적되는 계획서/가이드/트러블슈팅 문서는 원격 저장소에서 제외합니다.
+*.md
+*.MD
+!/README.md

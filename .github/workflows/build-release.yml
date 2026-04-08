@@ -1,0 +1,155 @@
+name: build-release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "frontend/**"
+      - "backend/**"
+      - "ai-server/**"
+      - "deploy/**"
+      - ".github/workflows/build-release.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: build-release-main
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ECR_BACKEND_REPOSITORY: ${{ vars.ECR_BACKEND_REPOSITORY }}
+  ECR_AI_REPOSITORY: ${{ vars.ECR_AI_REPOSITORY }}
+
+jobs:
+  build-frontend:
+    name: build-frontend-artifact
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup-node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: install-dependencies
+        run: npm ci
+
+      - name: build-production
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_KAKAO_CLIENT_ID: ${{ vars.VITE_KAKAO_CLIENT_ID }}
+          VITE_KAKAO_REDIRECT_URI: ${{ vars.VITE_KAKAO_REDIRECT_URI }}
+          VITE_PORTONE_STORE_ID: ${{ vars.VITE_PORTONE_STORE_ID }}
+          VITE_PORTONE_CHANNEL_KEY: ${{ vars.VITE_PORTONE_CHANNEL_KEY }}
+        run: npm run build
+
+      - name: upload-frontend-dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          if-no-files-found: error
+          retention-days: 7
+
+  build-server-images:
+    name: build-server-images
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: configure-aws-oidc
+        if: ${{ vars.AWS_ROLE_TO_ASSUME != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+
+      - name: configure-aws-access-key
+        if: ${{ vars.AWS_ROLE_TO_ASSUME == '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: validate-required-values
+        run: |
+          test -n "${AWS_REGION}" || (echo "AWS_REGION 변수가 비어 있습니다." && exit 1)
+          test -n "${ECR_BACKEND_REPOSITORY}" || (echo "ECR_BACKEND_REPOSITORY 변수가 비어 있습니다." && exit 1)
+          test -n "${ECR_AI_REPOSITORY}" || (echo "ECR_AI_REPOSITORY 변수가 비어 있습니다." && exit 1)
+
+      - name: login-ecr
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: ensure-ecr-repositories
+        run: |
+          aws ecr describe-repositories --repository-names "${ECR_BACKEND_REPOSITORY}" > /dev/null 2>&1 \
+            || aws ecr create-repository --repository-name "${ECR_BACKEND_REPOSITORY}" > /dev/null
+          aws ecr describe-repositories --repository-names "${ECR_AI_REPOSITORY}" > /dev/null 2>&1 \
+            || aws ecr create-repository --repository-name "${ECR_AI_REPOSITORY}" > /dev/null
+
+      - name: calculate-image-uris
+        id: image-vars
+        run: |
+          echo "backend_image=${{ steps.login-ecr.outputs.registry }}/${ECR_BACKEND_REPOSITORY}:${GITHUB_SHA}" >> "${GITHUB_OUTPUT}"
+          echo "ai_image=${{ steps.login-ecr.outputs.registry }}/${ECR_AI_REPOSITORY}:${GITHUB_SHA}" >> "${GITHUB_OUTPUT}"
+
+      - name: build-push-backend
+        uses: docker/build-push-action@v6
+        with:
+          context: backend/ai-interview
+          file: backend/ai-interview/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.image-vars.outputs.backend_image }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_BACKEND_REPOSITORY }}:latest
+
+      - name: build-push-ai-server
+        uses: docker/build-push-action@v6
+        with:
+          context: ai-server
+          file: ai-server/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.image-vars.outputs.ai_image }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_AI_REPOSITORY }}:latest
+
+      - name: write-release-metadata
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          metadata = {
+              "git_sha": "${{ github.sha }}",
+              "backend_image": "${{ steps.image-vars.outputs.backend_image }}",
+              "ai_image": "${{ steps.image-vars.outputs.ai_image }}",
+              "ecr_registry": "${{ steps.login-ecr.outputs.registry }}",
+          }
+          Path("release-metadata.json").write_text(
+              json.dumps(metadata, ensure_ascii=False, indent=2),
+              encoding="utf-8",
+          )
+          PY
+
+      - name: upload-release-metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-metadata
+          path: release-metadata.json
+          if-no-files-found: error
+          retention-days: 7

@@ -1,0 +1,92 @@
+name: deploy-server
+
+on:
+  workflow_run:
+    workflows:
+      - build-release
+    types:
+      - completed
+
+concurrency:
+  group: deploy-server-production
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  EC2_HOST: ${{ vars.EC2_HOST }}
+  EC2_PORT: ${{ vars.EC2_PORT || '22' }}
+  EC2_USER: ${{ vars.EC2_USER }}
+  EC2_DEPLOY_PATH: ${{ vars.EC2_DEPLOY_PATH || '/opt/ai-interview' }}
+
+jobs:
+  deploy-ec2:
+    name: deploy-ec2
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: validate-ec2-values
+        run: |
+          test -n "${AWS_REGION}" || (echo "AWS_REGION 변수가 비어 있습니다." && exit 1)
+          test -n "${EC2_HOST}" || (echo "EC2_HOST 변수가 비어 있습니다." && exit 1)
+          test -n "${EC2_USER}" || (echo "EC2_USER 변수가 비어 있습니다." && exit 1)
+          test -n "${EC2_DEPLOY_PATH}" || (echo "EC2_DEPLOY_PATH 변수가 비어 있습니다." && exit 1)
+
+      - name: checkout-release-commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: download-release-metadata
+        uses: actions/download-artifact@v4
+        with:
+          name: release-metadata
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+          path: deploy-metadata
+
+      - name: create-runtime-env-file
+        env:
+          EC2_APP_ENV_FILE: ${{ secrets.EC2_APP_ENV_FILE }}
+        run: |
+          printf '%s' "${EC2_APP_ENV_FILE}" > deploy/ec2/.env.runtime
+          sed -i 's/\r$//' deploy/ec2/.env.runtime
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          metadata_path = Path("deploy-metadata/release-metadata.json")
+          metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+
+          runtime_path = Path("deploy/ec2/.env.runtime")
+          with runtime_path.open("a", encoding="utf-8") as file:
+              file.write("\n")
+              file.write(f"BACKEND_IMAGE={metadata['backend_image']}\n")
+              file.write(f"AI_SERVER_IMAGE={metadata['ai_image']}\n")
+              file.write(f"ECR_REGISTRY={metadata['ecr_registry']}\n")
+          PY
+
+      - name: setup-ssh-key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/ec2_deploy_key
+          chmod 600 ~/.ssh/ec2_deploy_key
+          ssh-keyscan -p "${EC2_PORT}" "${EC2_HOST}" >> ~/.ssh/known_hosts
+
+      - name: upload-deploy-files
+        run: |
+          ssh -i ~/.ssh/ec2_deploy_key -p "${EC2_PORT}" "${EC2_USER}@${EC2_HOST}" "mkdir -p '${EC2_DEPLOY_PATH}'"
+          scp -i ~/.ssh/ec2_deploy_key -P "${EC2_PORT}" deploy/ec2/docker-compose.prod.yml "${EC2_USER}@${EC2_HOST}:${EC2_DEPLOY_PATH}/docker-compose.prod.yml"
+          scp -i ~/.ssh/ec2_deploy_key -P "${EC2_PORT}" deploy/ec2/deploy.sh "${EC2_USER}@${EC2_HOST}:${EC2_DEPLOY_PATH}/deploy.sh"
+          scp -i ~/.ssh/ec2_deploy_key -P "${EC2_PORT}" deploy/ec2/.env.runtime "${EC2_USER}@${EC2_HOST}:${EC2_DEPLOY_PATH}/.env"
+
+      - name: run-remote-deploy
+        run: |
+          ssh -i ~/.ssh/ec2_deploy_key -p "${EC2_PORT}" "${EC2_USER}@${EC2_HOST}" "\
+            chmod +x '${EC2_DEPLOY_PATH}/deploy.sh' && \
+            DEPLOY_DIR='${EC2_DEPLOY_PATH}' \
+            AWS_REGION='${AWS_REGION}' \
+            bash '${EC2_DEPLOY_PATH}/deploy.sh'"

@@ -1,0 +1,9 @@
+version: "1.0"
+linter: qodana-js
+
+# 왜 이렇게 했는지:
+# - 프론트엔드는 외부 의존성이 있어야 분석 정확도가 올라가므로 npm 설치를 먼저 수행합니다.
+# - 이 설정은 ENABLE_QODANA_JS=true 일 때만 사용합니다.
+
+bootstrap: |
+  npm ci

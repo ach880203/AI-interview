@@ -70,6 +70,9 @@ public class SecurityConfig {
                     "/api/auth/kakao"
                 ).permitAll()
 
+                // 헬스체크는 브라우저, 배포 스크립트, 인프라 점검에서 바로 확인할 수 있어야 합니다.
+                .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
+
                 // 업로드된 파일 정적 서빙은 인증 없이 허용
                 .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
 

@@ -1,0 +1,60 @@
+name: terraform-apply
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+
+jobs:
+  terraform-apply:
+    name: terraform-apply
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: infra/terraform/aws-deploy-foundation
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: configure-aws-oidc
+        if: ${{ vars.AWS_ROLE_TO_ASSUME != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+
+      - name: configure-aws-access-key
+        if: ${{ vars.AWS_ROLE_TO_ASSUME == '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: setup-terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.14.8
+
+      - name: validate-terraform-values
+        run: |
+          test -n "${AWS_REGION}" || (echo "AWS_REGION 변수가 비어 있습니다." && exit 1)
+          test -n "${{ vars.TF_FRONTEND_BUCKET_NAME || '' }}" || (echo "TF_FRONTEND_BUCKET_NAME 변수가 비어 있습니다." && exit 1)
+
+      - name: terraform-init
+        run: terraform init -input=false
+
+      - name: terraform-apply
+        env:
+          TF_VAR_aws_region: ${{ vars.AWS_REGION }}
+          TF_VAR_project_name: ${{ vars.TF_PROJECT_NAME || 'ai-interview' }}
+          TF_VAR_frontend_bucket_name: ${{ vars.TF_FRONTEND_BUCKET_NAME || '' }}
+          TF_VAR_backend_ecr_repository_name: ${{ vars.TF_BACKEND_ECR_REPOSITORY_NAME || 'ai-interview-backend' }}
+          TF_VAR_ai_ecr_repository_name: ${{ vars.TF_AI_ECR_REPOSITORY_NAME || 'ai-interview-ai' }}
+        run: terraform apply -input=false -auto-approve

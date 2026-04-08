@@ -1,0 +1,10 @@
+version: "1.0"
+linter: qodana-jvm-community
+projectJDK: "21"
+
+# 왜 이렇게 했는지:
+# - 백엔드는 Java 21 / Gradle 프로젝트라서 JVM 커뮤니티 린터를 명시적으로 고정합니다.
+# - 버전을 명시해 두면 기본 린터 변경에 덜 흔들립니다.
+
+bootstrap: |
+  ./gradlew --version

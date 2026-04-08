@@ -1,0 +1,75 @@
+version: "3.8"
+
+services:
+  # 운영 DB는 EC2 내부 네트워크에서만 접근하도록 포트를 외부에 열지 않습니다.
+  mariadb:
+    image: mariadb:11.4
+    container_name: ai-interview-db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_PASSWORD}
+      MARIADB_DATABASE: ${MARIADB_DATABASE:-ai_interview}
+      MARIADB_CHARACTER_SET_SERVER: utf8mb4
+      MARIADB_COLLATION_SERVER: utf8mb4_unicode_ci
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 20s
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ChromaDB도 내부 통신 전용으로 두어 외부 노출을 줄입니다.
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: ai-interview-chroma
+    restart: unless-stopped
+    environment:
+      ANONYMIZED_TELEMETRY: "false"
+    volumes:
+      - chroma_data:/chroma/chroma
+
+  ai-server:
+    image: ${AI_SERVER_IMAGE}
+    container_name: ai-interview-ai
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # 운영에서는 내부 서비스명으로 고정해 두어 EC2 내부 주소 변경에 덜 민감하게 둡니다.
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      - chromadb
+
+  backend:
+    image: ${BACKEND_IMAGE}
+    container_name: ai-interview-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+    environment:
+      # Spring Boot는 application.yml에서 DB_URL / DB_USERNAME / DB_PASSWORD를 읽도록 되어 있습니다.
+      # 운영에서는 컨테이너 내부 서비스명으로 고정해서 DB 연결 경로를 단순하게 유지합니다.
+      DB_URL: jdbc:mariadb://mariadb:3306/${MARIADB_DATABASE:-ai_interview}?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=Asia/Seoul
+      DB_USERNAME: ${DB_USERNAME:-root}
+      AI_SERVER_URL: http://ai-server:8000
+      SPRING_PROFILES_ACTIVE: prod
+      FILE_UPLOAD_DIR: /app/uploads
+    volumes:
+      # 업로드 파일은 컨테이너 재시작 후에도 유지되어야 하므로 볼륨으로 분리합니다.
+      - uploads_data:/app/uploads
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      ai-server:
+        condition: service_started
+
+volumes:
+  mariadb_data:
+  chroma_data:
+  uploads_data:
