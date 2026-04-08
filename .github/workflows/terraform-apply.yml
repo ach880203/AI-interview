@@ -46,6 +46,8 @@ jobs:
         run: |
           test -n "${AWS_REGION}" || (echo "AWS_REGION 변수가 비어 있습니다." && exit 1)
           test -n "${{ vars.TF_FRONTEND_BUCKET_NAME || '' }}" || (echo "TF_FRONTEND_BUCKET_NAME 변수가 비어 있습니다." && exit 1)
+          test -n "${{ vars.TF_EC2_SSH_PUBLIC_KEY || '' }}" || (echo "TF_EC2_SSH_PUBLIC_KEY 변수가 비어 있습니다." && exit 1)
+          test -n "${{ vars.TF_SSH_INGRESS_CIDRS || '' }}" || (echo "TF_SSH_INGRESS_CIDRS 변수가 비어 있습니다." && exit 1)
 
       - name: terraform-init
         run: terraform init -input=false
@@ -57,4 +59,33 @@ jobs:
           TF_VAR_frontend_bucket_name: ${{ vars.TF_FRONTEND_BUCKET_NAME || '' }}
           TF_VAR_backend_ecr_repository_name: ${{ vars.TF_BACKEND_ECR_REPOSITORY_NAME || 'ai-interview-backend' }}
           TF_VAR_ai_ecr_repository_name: ${{ vars.TF_AI_ECR_REPOSITORY_NAME || 'ai-interview-ai' }}
+          TF_VAR_ssh_ingress_cidrs: ${{ vars.TF_SSH_INGRESS_CIDRS || '[]' }}
+          TF_VAR_ec2_ssh_public_key: ${{ vars.TF_EC2_SSH_PUBLIC_KEY || '' }}
+          TF_VAR_ec2_instance_type: ${{ vars.TF_EC2_INSTANCE_TYPE || 't3.large' }}
+          TF_VAR_ec2_root_volume_size: ${{ vars.TF_EC2_ROOT_VOLUME_SIZE || '40' }}
+          TF_VAR_ec2_key_pair_name: ${{ vars.TF_EC2_KEY_PAIR_NAME || 'ai-interview-deploy-key' }}
+          TF_VAR_ec2_deploy_path: ${{ vars.TF_EC2_DEPLOY_PATH || '/opt/ai-interview' }}
         run: terraform apply -input=false -auto-approve
+
+      - name: export-terraform-outputs
+        env:
+          TF_VAR_aws_region: ${{ vars.AWS_REGION }}
+          TF_VAR_project_name: ${{ vars.TF_PROJECT_NAME || 'ai-interview' }}
+          TF_VAR_frontend_bucket_name: ${{ vars.TF_FRONTEND_BUCKET_NAME || '' }}
+          TF_VAR_backend_ecr_repository_name: ${{ vars.TF_BACKEND_ECR_REPOSITORY_NAME || 'ai-interview-backend' }}
+          TF_VAR_ai_ecr_repository_name: ${{ vars.TF_AI_ECR_REPOSITORY_NAME || 'ai-interview-ai' }}
+          TF_VAR_ssh_ingress_cidrs: ${{ vars.TF_SSH_INGRESS_CIDRS || '[]' }}
+          TF_VAR_ec2_ssh_public_key: ${{ vars.TF_EC2_SSH_PUBLIC_KEY || '' }}
+          TF_VAR_ec2_instance_type: ${{ vars.TF_EC2_INSTANCE_TYPE || 't3.large' }}
+          TF_VAR_ec2_root_volume_size: ${{ vars.TF_EC2_ROOT_VOLUME_SIZE || '40' }}
+          TF_VAR_ec2_key_pair_name: ${{ vars.TF_EC2_KEY_PAIR_NAME || 'ai-interview-deploy-key' }}
+          TF_VAR_ec2_deploy_path: ${{ vars.TF_EC2_DEPLOY_PATH || '/opt/ai-interview' }}
+        run: terraform output -json > terraform-outputs.json
+
+      - name: upload-terraform-outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-outputs
+          path: infra/terraform/aws-deploy-foundation/terraform-outputs.json
+          if-no-files-found: error
+          retention-days: 7

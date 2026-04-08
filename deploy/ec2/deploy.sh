@@ -19,6 +19,20 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   exit 1
 fi
 
+# 주의:
+# - Windows에서 GitHub Secret 본문이나 .env 파일을 만들면 UTF-8 BOM이 앞에 붙는 경우가 있습니다.
+# - bash source는 BOM이 붙은 첫 줄을 변수 선언이 아니라 잘못된 명령으로 볼 수 있어
+#   배포 초반에 `command not found`(127)로 바로 실패할 수 있습니다.
+# - 배포 전에 BOM을 제거해 두면 로컬/CI/수동 업로드 경로가 달라도 같은 문제를 막을 수 있습니다.
+python3 - <<'PY' "${ENV_FILE}"
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8-sig")
+path.write_text(text.replace("\r\n", "\n"), encoding="utf-8")
+PY
+
 # .env 안의 BACKEND_IMAGE / AI_SERVER_IMAGE / ECR_REGISTRY 값을 재사용하기 위해 불러옵니다.
 # set -a를 사용하면 compose 실행 전에 필요한 값이 환경변수로 자동 export 됩니다.
 set -a

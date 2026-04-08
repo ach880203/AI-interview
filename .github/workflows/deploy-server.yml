@@ -14,12 +14,11 @@ concurrency:
 permissions:
   actions: read
   contents: read
+  id-token: write
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
-  EC2_HOST: ${{ vars.EC2_HOST }}
-  EC2_PORT: ${{ vars.EC2_PORT || '22' }}
-  EC2_USER: ${{ vars.EC2_USER }}
+  EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
   EC2_DEPLOY_PATH: ${{ vars.EC2_DEPLOY_PATH || '/opt/ai-interview' }}
 
 jobs:
@@ -31,15 +30,16 @@ jobs:
       - name: detect-server-deploy-config
         id: detect-config
         env:
-          EC2_SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           EC2_APP_ENV_FILE: ${{ secrets.EC2_APP_ENV_FILE }}
+          AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           if [ -n "${AWS_REGION}" ] \
-            && [ -n "${EC2_HOST}" ] \
-            && [ -n "${EC2_USER}" ] \
+            && [ -n "${EC2_INSTANCE_ID}" ] \
             && [ -n "${EC2_DEPLOY_PATH}" ] \
-            && [ -n "${EC2_SSH_PRIVATE_KEY}" ] \
-            && [ -n "${EC2_APP_ENV_FILE}" ]; then
+            && [ -n "${EC2_APP_ENV_FILE}" ] \
+            && { [ -n "${AWS_ROLE_TO_ASSUME}" ] || { [ -n "${AWS_ACCESS_KEY_ID}" ] && [ -n "${AWS_SECRET_ACCESS_KEY}" ]; }; }; then
             echo "ready=true" >> "${GITHUB_OUTPUT}"
           else
             echo "ready=false" >> "${GITHUB_OUTPUT}"
@@ -48,14 +48,13 @@ jobs:
       - name: skip-server-deploy
         if: ${{ steps.detect-config.outputs.ready != 'true' }}
         run: |
-          echo "::notice::EC2 배포 설정이 아직 비어 있어 deploy-server 워크플로는 건너뜁니다."
+          echo "::notice::EC2 SSM 배포 설정이 아직 비어 있어 deploy-server 워크플로를 건너뜁니다."
 
       - name: validate-ec2-values
         if: ${{ steps.detect-config.outputs.ready == 'true' }}
         run: |
           test -n "${AWS_REGION}" || (echo "AWS_REGION 변수가 비어 있습니다." && exit 1)
-          test -n "${EC2_HOST}" || (echo "EC2_HOST 변수가 비어 있습니다." && exit 1)
-          test -n "${EC2_USER}" || (echo "EC2_USER 변수가 비어 있습니다." && exit 1)
+          test -n "${EC2_INSTANCE_ID}" || (echo "EC2_INSTANCE_ID 변수가 비어 있습니다." && exit 1)
           test -n "${EC2_DEPLOY_PATH}" || (echo "EC2_DEPLOY_PATH 변수가 비어 있습니다." && exit 1)
 
       - name: checkout-release-commit
@@ -79,7 +78,6 @@ jobs:
           EC2_APP_ENV_FILE: ${{ secrets.EC2_APP_ENV_FILE }}
         run: |
           printf '%s' "${EC2_APP_ENV_FILE}" > deploy/ec2/.env.runtime
-          sed -i 's/\r$//' deploy/ec2/.env.runtime
           python - <<'PY'
           import json
           from pathlib import Path
@@ -88,34 +86,126 @@ jobs:
           metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
 
           runtime_path = Path("deploy/ec2/.env.runtime")
-          with runtime_path.open("a", encoding="utf-8") as file:
-              file.write("\n")
-              file.write(f"BACKEND_IMAGE={metadata['backend_image']}\n")
-              file.write(f"AI_SERVER_IMAGE={metadata['ai_image']}\n")
-              file.write(f"ECR_REGISTRY={metadata['ecr_registry']}\n")
+          runtime_text = runtime_path.read_text(encoding="utf-8-sig")
+          lines = runtime_text.rstrip("\n").splitlines()
+          lines.extend([
+              f"BACKEND_IMAGE={metadata['backend_image']}",
+              f"AI_SERVER_IMAGE={metadata['ai_image']}",
+              f"ECR_REGISTRY={metadata['ecr_registry']}",
+          ])
+          runtime_path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
           PY
 
-      - name: setup-ssh-key
-        if: ${{ steps.detect-config.outputs.ready == 'true' }}
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/ec2_deploy_key
-          chmod 600 ~/.ssh/ec2_deploy_key
-          ssh-keyscan -p "${EC2_PORT}" "${EC2_HOST}" >> ~/.ssh/known_hosts
+      - name: configure-aws-oidc
+        if: ${{ steps.detect-config.outputs.ready == 'true' && vars.AWS_ROLE_TO_ASSUME != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
 
-      - name: upload-deploy-files
-        if: ${{ steps.detect-config.outputs.ready == 'true' }}
-        run: |
-          ssh -i ~/.ssh/ec2_deploy_key -p "${EC2_PORT}" "${EC2_USER}@${EC2_HOST}" "mkdir -p '${EC2_DEPLOY_PATH}'"
-          scp -i ~/.ssh/ec2_deploy_key -P "${EC2_PORT}" deploy/ec2/docker-compose.prod.yml "${EC2_USER}@${EC2_HOST}:${EC2_DEPLOY_PATH}/docker-compose.prod.yml"
-          scp -i ~/.ssh/ec2_deploy_key -P "${EC2_PORT}" deploy/ec2/deploy.sh "${EC2_USER}@${EC2_HOST}:${EC2_DEPLOY_PATH}/deploy.sh"
-          scp -i ~/.ssh/ec2_deploy_key -P "${EC2_PORT}" deploy/ec2/.env.runtime "${EC2_USER}@${EC2_HOST}:${EC2_DEPLOY_PATH}/.env"
+      - name: configure-aws-access-key
+        if: ${{ steps.detect-config.outputs.ready == 'true' && vars.AWS_ROLE_TO_ASSUME == '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
-      - name: run-remote-deploy
+      - name: upload-deploy-files-with-ssm
         if: ${{ steps.detect-config.outputs.ready == 'true' }}
         run: |
-          ssh -i ~/.ssh/ec2_deploy_key -p "${EC2_PORT}" "${EC2_USER}@${EC2_HOST}" "\
-            chmod +x '${EC2_DEPLOY_PATH}/deploy.sh' && \
-            DEPLOY_DIR='${EC2_DEPLOY_PATH}' \
-            AWS_REGION='${AWS_REGION}' \
-            bash '${EC2_DEPLOY_PATH}/deploy.sh'"
+          set -euo pipefail
+          python - <<'PY'
+          import base64
+          import json
+          import os
+          from pathlib import Path
+
+          deploy_dir = os.environ["EC2_DEPLOY_PATH"]
+          compose_b64 = base64.b64encode(Path("deploy/ec2/docker-compose.prod.yml").read_bytes()).decode("ascii")
+          script_b64 = base64.b64encode(Path("deploy/ec2/deploy.sh").read_bytes()).decode("ascii")
+          env_b64 = base64.b64encode(Path("deploy/ec2/.env.runtime").read_bytes()).decode("ascii")
+
+          params = {
+              "commands": [
+                  "set -euo pipefail",
+                  f"DEPLOY_DIR='{deploy_dir}'",
+                  "mkdir -p \"$DEPLOY_DIR\"",
+                  f"printf '%s' '{compose_b64}' | base64 -d > \"$DEPLOY_DIR/docker-compose.prod.yml\"",
+                  f"printf '%s' '{script_b64}' | base64 -d > \"$DEPLOY_DIR/deploy.sh\"",
+                  f"printf '%s' '{env_b64}' | base64 -d > \"$DEPLOY_DIR/.env\"",
+                  "chmod +x \"$DEPLOY_DIR/deploy.sh\"",
+                  "sed -i 's/\\r$//' \"$DEPLOY_DIR/docker-compose.prod.yml\" \"$DEPLOY_DIR/deploy.sh\" \"$DEPLOY_DIR/.env\"",
+              ]
+          }
+
+          Path("ssm-upload-params.json").write_text(
+              json.dumps(params, ensure_ascii=False, indent=2),
+              encoding="utf-8",
+          )
+          PY
+
+          COMMAND_ID=$(aws ssm send-command \
+            --region "${AWS_REGION}" \
+            --instance-ids "${EC2_INSTANCE_ID}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Upload deploy files" \
+            --parameters file://ssm-upload-params.json \
+            --query 'Command.CommandId' \
+            --output text)
+
+          aws ssm wait command-executed \
+            --region "${AWS_REGION}" \
+            --command-id "${COMMAND_ID}" \
+            --instance-id "${EC2_INSTANCE_ID}"
+
+          aws ssm get-command-invocation \
+            --region "${AWS_REGION}" \
+            --command-id "${COMMAND_ID}" \
+            --instance-id "${EC2_INSTANCE_ID}"
+
+      - name: run-remote-deploy-with-ssm
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          deploy_dir = os.environ["EC2_DEPLOY_PATH"]
+          aws_region = os.environ["AWS_REGION"]
+
+          # SSH 허용 대역에 GitHub Actions 러너 IP를 넣기 어렵기 때문에
+          # SSM으로 원격 명령을 실행해 배포를 안정적으로 진행합니다.
+          params = {
+              "commands": [
+                  "set -euo pipefail",
+                  f"DEPLOY_DIR='{deploy_dir}' AWS_REGION='{aws_region}' bash '{deploy_dir}/deploy.sh'",
+              ]
+          }
+
+          Path("ssm-deploy-params.json").write_text(
+              json.dumps(params, ensure_ascii=False, indent=2),
+              encoding="utf-8",
+          )
+          PY
+
+          COMMAND_ID=$(aws ssm send-command \
+            --region "${AWS_REGION}" \
+            --instance-ids "${EC2_INSTANCE_ID}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Run application deploy" \
+            --parameters file://ssm-deploy-params.json \
+            --query 'Command.CommandId' \
+            --output text)
+
+          aws ssm wait command-executed \
+            --region "${AWS_REGION}" \
+            --command-id "${COMMAND_ID}" \
+            --instance-id "${EC2_INSTANCE_ID}"
+
+          aws ssm get-command-invocation \
+            --region "${AWS_REGION}" \
+            --command-id "${COMMAND_ID}" \
+            --instance-id "${EC2_INSTANCE_ID}"

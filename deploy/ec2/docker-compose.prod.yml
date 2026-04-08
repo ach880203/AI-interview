@@ -26,7 +26,9 @@ services:
     environment:
       ANONYMIZED_TELEMETRY: "false"
     volumes:
-      - chroma_data:/chroma/chroma
+      # 최신 Chroma 공식 이미지는 실제 데이터 경로로 /data 를 사용합니다.
+      # 운영 환경에서도 로컬과 같은 경로를 써야 재시작 시 데이터 위치가 어긋나지 않습니다.
+      - chroma_data:/data
 
   ai-server:
     image: ${AI_SERVER_IMAGE}
@@ -56,6 +58,9 @@ services:
       DB_URL: jdbc:mariadb://mariadb:3306/${MARIADB_DATABASE:-ai_interview}?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=Asia/Seoul
       DB_USERNAME: ${DB_USERNAME:-root}
       AI_SERVER_URL: http://ai-server:8000
+      # t3.small에서 Java 프로세스가 메모리를 과하게 점유하면 다른 컨테이너까지 같이 불안정해질 수 있어
+      # 힙 상한을 명시해 운영 서버 전체가 한 번에 죽는 상황을 줄입니다.
+      JAVA_TOOL_OPTIONS: -Xms256m -Xmx512m
       SPRING_PROFILES_ACTIVE: prod
       FILE_UPLOAD_DIR: /app/uploads
     volumes:

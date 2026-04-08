@@ -1,0 +1,17 @@
+aws_region           = "ap-northeast-2"
+project_name         = "ai-interview"
+frontend_bucket_name = "ai-interview-frontend-example-bucket"
+
+# SSH 허용 대역은 반드시 본인 공인 IP /32 또는 회사/VPN 고정 IP만 넣어야 합니다.
+ssh_ingress_cidrs = [
+  "203.0.113.10/32",
+]
+
+# 예시 공개키입니다. 실제 배포 전에는 본인 공개키로 교체하세요.
+ec2_ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleReplaceThisWithYourRealPublicKey user@example"
+
+# 필요 시 조정
+backend_ecr_repository_name = "ai-interview-backend"
+ai_ecr_repository_name      = "ai-interview-ai"
+ec2_instance_type           = "t3.large"
+ec2_root_volume_size        = 40
