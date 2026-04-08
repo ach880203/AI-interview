@@ -7,4 +7,5 @@ projectJDK: "21"
 # - 버전을 명시해 두면 기본 린터 변경에 덜 흔들립니다.
 
 bootstrap: |
-  ./gradlew --version
+  # Git 권한 비트가 실행 가능으로 보존되지 않아도 동작하도록 sh 로 직접 실행합니다.
+  sh ./gradlew --version
