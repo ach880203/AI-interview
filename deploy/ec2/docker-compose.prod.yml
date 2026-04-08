@@ -7,6 +7,8 @@ services:
     environment:
       MARIADB_ROOT_PASSWORD: ${DB_PASSWORD}
       MARIADB_DATABASE: ${MARIADB_DATABASE:-ai_interview}
+      MARIADB_USER: ${DB_USERNAME:-aiapp}
+      MARIADB_PASSWORD: ${DB_PASSWORD}
       MARIADB_CHARACTER_SET_SERVER: utf8mb4
       MARIADB_COLLATION_SERVER: utf8mb4_unicode_ci
     volumes:
@@ -56,7 +58,7 @@ services:
       # Spring Boot는 application.yml에서 DB_URL / DB_USERNAME / DB_PASSWORD를 읽도록 되어 있습니다.
       # 운영에서는 컨테이너 내부 서비스명으로 고정해서 DB 연결 경로를 단순하게 유지합니다.
       DB_URL: jdbc:mariadb://mariadb:3306/${MARIADB_DATABASE:-ai_interview}?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=Asia/Seoul
-      DB_USERNAME: ${DB_USERNAME:-root}
+      DB_USERNAME: ${DB_USERNAME:-aiapp}
       AI_SERVER_URL: http://ai-server:8000
       # t3.small에서 Java 프로세스가 메모리를 과하게 점유하면 다른 컨테이너까지 같이 불안정해질 수 있어
       # 힙 상한을 명시해 운영 서버 전체가 한 번에 죽는 상황을 줄입니다.

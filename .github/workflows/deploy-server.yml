@@ -88,6 +88,10 @@ jobs:
           runtime_path = Path("deploy/ec2/.env.runtime")
           runtime_text = runtime_path.read_text(encoding="utf-8-sig")
           lines = runtime_text.rstrip("\n").splitlines()
+          if not any(line.startswith("DB_USERNAME=") for line in lines):
+              # 운영 배포에서 DB_USERNAME이 비어 있으면 Compose 기본값으로 root가 들어가
+              # MariaDB 원격 접속 정책과 충돌할 수 있어 전용 계정을 기본으로 채웁니다.
+              lines.append("DB_USERNAME=aiapp")
           lines.extend([
               f"BACKEND_IMAGE={metadata['backend_image']}",
               f"AI_SERVER_IMAGE={metadata['ai_image']}",
