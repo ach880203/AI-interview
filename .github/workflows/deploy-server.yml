@@ -28,7 +28,30 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
     runs-on: ubuntu-latest
     steps:
+      - name: detect-server-deploy-config
+        id: detect-config
+        env:
+          EC2_SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          EC2_APP_ENV_FILE: ${{ secrets.EC2_APP_ENV_FILE }}
+        run: |
+          if [ -n "${AWS_REGION}" ] \
+            && [ -n "${EC2_HOST}" ] \
+            && [ -n "${EC2_USER}" ] \
+            && [ -n "${EC2_DEPLOY_PATH}" ] \
+            && [ -n "${EC2_SSH_PRIVATE_KEY}" ] \
+            && [ -n "${EC2_APP_ENV_FILE}" ]; then
+            echo "ready=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "ready=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: skip-server-deploy
+        if: ${{ steps.detect-config.outputs.ready != 'true' }}
+        run: |
+          echo "::notice::EC2 배포 설정이 아직 비어 있어 deploy-server 워크플로는 건너뜁니다."
+
       - name: validate-ec2-values
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
         run: |
           test -n "${AWS_REGION}" || (echo "AWS_REGION 변수가 비어 있습니다." && exit 1)
           test -n "${EC2_HOST}" || (echo "EC2_HOST 변수가 비어 있습니다." && exit 1)
@@ -36,11 +59,13 @@ jobs:
           test -n "${EC2_DEPLOY_PATH}" || (echo "EC2_DEPLOY_PATH 변수가 비어 있습니다." && exit 1)
 
       - name: checkout-release-commit
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: download-release-metadata
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
         uses: actions/download-artifact@v4
         with:
           name: release-metadata
@@ -49,6 +74,7 @@ jobs:
           path: deploy-metadata
 
       - name: create-runtime-env-file
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
         env:
           EC2_APP_ENV_FILE: ${{ secrets.EC2_APP_ENV_FILE }}
         run: |
@@ -70,6 +96,7 @@ jobs:
           PY
 
       - name: setup-ssh-key
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
         run: |
           mkdir -p ~/.ssh
           printf '%s\n' "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/ec2_deploy_key
@@ -77,6 +104,7 @@ jobs:
           ssh-keyscan -p "${EC2_PORT}" "${EC2_HOST}" >> ~/.ssh/known_hosts
 
       - name: upload-deploy-files
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
         run: |
           ssh -i ~/.ssh/ec2_deploy_key -p "${EC2_PORT}" "${EC2_USER}@${EC2_HOST}" "mkdir -p '${EC2_DEPLOY_PATH}'"
           scp -i ~/.ssh/ec2_deploy_key -P "${EC2_PORT}" deploy/ec2/docker-compose.prod.yml "${EC2_USER}@${EC2_HOST}:${EC2_DEPLOY_PATH}/docker-compose.prod.yml"
@@ -84,6 +112,7 @@ jobs:
           scp -i ~/.ssh/ec2_deploy_key -P "${EC2_PORT}" deploy/ec2/.env.runtime "${EC2_USER}@${EC2_HOST}:${EC2_DEPLOY_PATH}/.env"
 
       - name: run-remote-deploy
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
         run: |
           ssh -i ~/.ssh/ec2_deploy_key -p "${EC2_PORT}" "${EC2_USER}@${EC2_HOST}" "\
             chmod +x '${EC2_DEPLOY_PATH}/deploy.sh' && \

@@ -70,15 +70,36 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
 
+      - name: detect-aws-release-config
+        id: detect-config
+        env:
+          AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          if [ -n "${AWS_REGION}" ] \
+            && [ -n "${ECR_BACKEND_REPOSITORY}" ] \
+            && [ -n "${ECR_AI_REPOSITORY}" ] \
+            && { [ -n "${AWS_ROLE_TO_ASSUME}" ] || { [ -n "${AWS_ACCESS_KEY_ID}" ] && [ -n "${AWS_SECRET_ACCESS_KEY}" ]; }; }; then
+            echo "ready=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "ready=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: skip-build-server-images
+        if: ${{ steps.detect-config.outputs.ready != 'true' }}
+        run: |
+          echo "::notice::AWS/ECR 설정이 아직 비어 있어 서버 이미지 빌드와 푸시는 건너뜁니다."
+
       - name: configure-aws-oidc
-        if: ${{ vars.AWS_ROLE_TO_ASSUME != '' }}
+        if: ${{ steps.detect-config.outputs.ready == 'true' && vars.AWS_ROLE_TO_ASSUME != '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
 
       - name: configure-aws-access-key
-        if: ${{ vars.AWS_ROLE_TO_ASSUME == '' }}
+        if: ${{ steps.detect-config.outputs.ready == 'true' && vars.AWS_ROLE_TO_ASSUME == '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
@@ -86,16 +107,19 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
       - name: validate-required-values
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
         run: |
           test -n "${AWS_REGION}" || (echo "AWS_REGION 변수가 비어 있습니다." && exit 1)
           test -n "${ECR_BACKEND_REPOSITORY}" || (echo "ECR_BACKEND_REPOSITORY 변수가 비어 있습니다." && exit 1)
           test -n "${ECR_AI_REPOSITORY}" || (echo "ECR_AI_REPOSITORY 변수가 비어 있습니다." && exit 1)
 
       - name: login-ecr
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: ensure-ecr-repositories
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
         run: |
           aws ecr describe-repositories --repository-names "${ECR_BACKEND_REPOSITORY}" > /dev/null 2>&1 \
             || aws ecr create-repository --repository-name "${ECR_BACKEND_REPOSITORY}" > /dev/null
@@ -103,12 +127,14 @@ jobs:
             || aws ecr create-repository --repository-name "${ECR_AI_REPOSITORY}" > /dev/null
 
       - name: calculate-image-uris
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
         id: image-vars
         run: |
           echo "backend_image=${{ steps.login-ecr.outputs.registry }}/${ECR_BACKEND_REPOSITORY}:${GITHUB_SHA}" >> "${GITHUB_OUTPUT}"
           echo "ai_image=${{ steps.login-ecr.outputs.registry }}/${ECR_AI_REPOSITORY}:${GITHUB_SHA}" >> "${GITHUB_OUTPUT}"
 
       - name: build-push-backend
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: backend/ai-interview
@@ -119,6 +145,7 @@ jobs:
             ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_BACKEND_REPOSITORY }}:latest
 
       - name: build-push-ai-server
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: ai-server
@@ -129,6 +156,7 @@ jobs:
             ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_AI_REPOSITORY }}:latest
 
       - name: write-release-metadata
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
         run: |
           python - <<'PY'
           import json
@@ -147,6 +175,7 @@ jobs:
           PY
 
       - name: upload-release-metadata
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: release-metadata

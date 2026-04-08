@@ -27,13 +27,36 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
     runs-on: ubuntu-latest
     steps:
+      - name: detect-frontend-deploy-config
+        id: detect-config
+        env:
+          AWS_ROLE_TO_ASSUME: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          if [ -n "${AWS_REGION}" ] \
+            && [ -n "${FRONTEND_S3_BUCKET}" ] \
+            && [ -n "${FRONTEND_CLOUDFRONT_DISTRIBUTION_ID}" ] \
+            && { [ -n "${AWS_ROLE_TO_ASSUME}" ] || { [ -n "${AWS_ACCESS_KEY_ID}" ] && [ -n "${AWS_SECRET_ACCESS_KEY}" ]; }; }; then
+            echo "ready=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "ready=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: skip-frontend-deploy
+        if: ${{ steps.detect-config.outputs.ready != 'true' }}
+        run: |
+          echo "::notice::프론트 배포 설정이 아직 비어 있어 deploy-frontend 워크플로는 건너뜁니다."
+
       - name: validate-required-values
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
         run: |
           test -n "${AWS_REGION}" || (echo "AWS_REGION 변수가 비어 있습니다." && exit 1)
           test -n "${FRONTEND_S3_BUCKET}" || (echo "FRONTEND_S3_BUCKET 변수가 비어 있습니다." && exit 1)
           test -n "${FRONTEND_CLOUDFRONT_DISTRIBUTION_ID}" || (echo "FRONTEND_CLOUDFRONT_DISTRIBUTION_ID 변수가 비어 있습니다." && exit 1)
 
       - name: download-frontend-artifact
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
         uses: actions/download-artifact@v4
         with:
           name: frontend-dist
@@ -42,14 +65,14 @@ jobs:
           path: frontend-dist
 
       - name: configure-aws-oidc
-        if: ${{ vars.AWS_ROLE_TO_ASSUME != '' }}
+        if: ${{ steps.detect-config.outputs.ready == 'true' && vars.AWS_ROLE_TO_ASSUME != '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
 
       - name: configure-aws-access-key
-        if: ${{ vars.AWS_ROLE_TO_ASSUME == '' }}
+        if: ${{ steps.detect-config.outputs.ready == 'true' && vars.AWS_ROLE_TO_ASSUME == '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
@@ -57,7 +80,9 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
       - name: sync-to-s3
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
         run: aws s3 sync frontend-dist "s3://${FRONTEND_S3_BUCKET}" --delete
 
       - name: invalidate-cloudfront
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
         run: aws cloudfront create-invalidation --distribution-id "${FRONTEND_CLOUDFRONT_DISTRIBUTION_ID}" --paths "/*"
