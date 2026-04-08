@@ -48,7 +48,7 @@ class PythonAiServiceTest {
     @DisplayName("면접 질문 생성은 비어 있지 않은 문자열을 반환해야 한다")
     void 면접_질문_생성_계약() {
         String question = aiService.generateInterviewQuestion(
-                null, null, null, "", "GENERAL"
+                null, null, null, "", "GENERAL", null
         );
 
         assertThat(question).isNotNull().isNotBlank();
@@ -58,7 +58,7 @@ class PythonAiServiceTest {
     @DisplayName("이력서 기반 면접 질문 생성은 컨텍스트를 무시하지 않아야 한다")
     void 이력서_기반_질문_생성_계약() {
         String question = aiService.generateInterviewQuestion(
-                "Spring Boot 3년 경력", "AI 면접 플랫폼 개발", "백엔드 개발자 채용", "", "TECHNICAL"
+                "Spring Boot 3년 경력", "AI 면접 플랫폼 개발", "백엔드 개발자 채용", "", "TECHNICAL", null
         );
 
         assertThat(question).isNotNull().isNotBlank();
@@ -69,7 +69,7 @@ class PythonAiServiceTest {
     void 피드백_생성_계약() {
         String history = "Q1: 자기소개 부탁드립니다.\nA1: 백엔드 개발 3년 경력입니다.";
 
-        FeedbackDto feedback = aiService.generateFeedback(history);
+        FeedbackDto feedback = aiService.generateFeedback(history, null, null);
 
         assertThat(feedback).isNotNull();
         assertThat(feedback.logicScore()).isBetween(0, 100);

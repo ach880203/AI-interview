@@ -105,6 +105,7 @@ jobs:
           KAKAO_CLIENT_SECRET: test-kakao-client-secret
           KAKAO_REDIRECT_URI: https://example.com/auth/kakao/callback
         run: |
+          cp ai-server/.env.example ai-server/.env
           docker compose -f docker-compose.yml config > /dev/null
           docker compose -f deploy/ec2/docker-compose.prod.yml config > /dev/null
 
