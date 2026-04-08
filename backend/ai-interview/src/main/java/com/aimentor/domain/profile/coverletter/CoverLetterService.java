@@ -51,6 +51,7 @@ public class CoverLetterService {
     public CoverLetterResponseDto createCoverLetter(CoverLetterCreateRequestDto request,
                                                     MultipartFile file, String email) {
         UserEntity user = getUser(email);
+        String originalFileName = (file != null && !file.isEmpty()) ? file.getOriginalFilename() : null;
         String fileUrl = s3StorageService.uploadFile(file, "cover-letters");
         String content = extractContentFromFile(file, request.content());
 
@@ -59,6 +60,7 @@ public class CoverLetterService {
                 .title(request.title())
                 .content(content)
                 .fileUrl(fileUrl)
+                .originalFileName(originalFileName)
                 .build();
         return CoverLetterResponseDto.from(coverLetterRepository.save(coverLetter));
     }
@@ -77,7 +79,10 @@ public class CoverLetterService {
 
         if (file != null && !file.isEmpty()) {
             s3StorageService.deleteFile(coverLetter.getFileUrl());
-            coverLetter.updateFileUrl(s3StorageService.uploadFile(file, "cover-letters"));
+            coverLetter.updateFileUrl(
+                s3StorageService.uploadFile(file, "cover-letters"),
+                file.getOriginalFilename()
+            );
         }
 
         return CoverLetterResponseDto.from(coverLetter);

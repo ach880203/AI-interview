@@ -3,6 +3,7 @@ package com.aimentor.domain.learning;
 import com.aimentor.common.BusinessException;
 import com.aimentor.common.ErrorCode;
 import com.aimentor.domain.learning.dto.*;
+import com.aimentor.domain.subscription.UsageLimitService;
 import com.aimentor.domain.user.UserEntity;
 import com.aimentor.domain.user.UserRepository;
 import com.aimentor.external.ai.AiService;
@@ -38,6 +39,7 @@ public class LearningService {
     private final LearningAttemptRepository learningAttemptRepository;
     private final UserRepository userRepository;
     private final AiService aiService;
+    private final UsageLimitService usageLimitService;
 
     /**
      * 등록된 학습 과목 목록을 조회합니다.
@@ -67,7 +69,9 @@ public class LearningService {
      * @return 생성된 문제 목록
      */
     @Transactional
-    public List<LearningProblemDto> generateProblems(Long subjectId, LearningGenerateRequestDto request) {
+    public List<LearningProblemDto> generateProblems(Long subjectId, LearningGenerateRequestDto request, String email) {
+        UserEntity user = getUser(email);
+        usageLimitService.checkLearningUsage(user.getId(), request.sessionKey());
         LearningSubjectEntity subject = getSubject(subjectId);
 
         List<ProblemDto> problems = aiService.generateLearningProblems(

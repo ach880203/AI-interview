@@ -35,6 +35,9 @@ public enum ErrorCode {
     AI_SERVER_ERROR("AI_SERVER_ERROR", "AI 서버 오류가 발생했습니다."),
     SPEECH_SERVER_ERROR("SPEECH_SERVER_ERROR", "음성 처리 서버 오류가 발생했습니다."),
 
+    // 사용 제한 관련
+    DAILY_USAGE_LIMIT_EXCEEDED("DAILY_USAGE_LIMIT_EXCEEDED", "오늘의 무료 이용 횟수를 모두 사용했습니다. 구독 후 무제한으로 이용해보세요."),
+
     // 일반 서버 오류
     INTERNAL_SERVER_ERROR("INTERNAL_SERVER_ERROR", "서버 내부 오류가 발생했습니다.");
 

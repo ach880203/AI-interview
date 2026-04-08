@@ -14,6 +14,7 @@ public record ResumeResponseDto(
         String title,
         String content,
         String fileUrl,
+        String originalFileName,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
@@ -24,6 +25,7 @@ public record ResumeResponseDto(
                 resume.getTitle(),
                 resume.getContent(),
                 resume.getFileUrl(),
+                resume.getOriginalFileName(),
                 resume.getCreatedAt(),
                 resume.getUpdatedAt()
         );

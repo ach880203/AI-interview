@@ -10,7 +10,7 @@ export default function SubscriptionProgressSteps({ currentStep }) {
     {
       stepNumber: '1',
       title: '구독 선택',
-      description: '이용 기간과 요금제를 비교하고 현재 준비 기간에 맞는 플랜을 고릅니다.',
+      description: '이용 기간과 요금제를 비교하고 현재 준비 기간에 맞는 플랜을 고르세요.',
     },
     {
       stepNumber: '2',
@@ -19,22 +19,19 @@ export default function SubscriptionProgressSteps({ currentStep }) {
     },
     {
       stepNumber: '3',
-      title: '결제 진행',
-      description: '카카오페이 기준 결제 확인 흐름으로 진입합니다.',
+      title: '최종 확인',
+      description: '구독 정보를 최종 확인 후 결제로 진입합니다.',
     },
     {
       stepNumber: '4',
       title: '구독 완료',
-      description: '구독 시작일과 만료일을 확인하고 학습과 면접으로 바로 이어집니다.',
+      description: '구독 시작일과 만료일을 확인하고 학습과 면접기능을 바로 이용하세요.',
     },
   ];
 
   return (
     <section className="rounded-[32px] bg-mentor-surface p-6 shadow-sm">
-      <p className="text-sm font-semibold text-mentor-primary">구독 이용 흐름</p>
-      <h2 className="mt-2 text-xl font-bold text-mentor-text">
-        구독 단계가 이어지는 순서를 한눈에 확인할 수 있습니다.
-      </h2>
+      <p className="text-sm font-semibold text-mentor-primary">구독 결제 순서</p>
       <div className="mt-6 grid gap-4 lg:grid-cols-4">
         {steps.map((step, index) => {
           const isCompleted = currentStep > index + 1;

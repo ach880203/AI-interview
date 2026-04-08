@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import introVideoSource from '../assets/intro.mp4';
+
+const introVideoSource = '/intro.mp4';
 
 const INTRO_FADE_OUT_DURATION = 500;
 

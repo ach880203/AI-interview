@@ -11,6 +11,7 @@ public record CoverLetterResponseDto(
         String title,
         String content,
         String fileUrl,
+        String originalFileName,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
@@ -21,6 +22,7 @@ public record CoverLetterResponseDto(
                 coverLetter.getTitle(),
                 coverLetter.getContent(),
                 coverLetter.getFileUrl(),
+                coverLetter.getOriginalFileName(),
                 coverLetter.getCreatedAt(),
                 coverLetter.getUpdatedAt()
         );

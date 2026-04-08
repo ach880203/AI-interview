@@ -34,6 +34,7 @@ public class GlobalExceptionHandler {
             case FORBIDDEN -> HttpStatus.FORBIDDEN;
             case UNAUTHORIZED, INVALID_TOKEN, EXPIRED_TOKEN -> HttpStatus.UNAUTHORIZED;
             case VALIDATION_ERROR, DUPLICATE_EMAIL, OUT_OF_STOCK -> HttpStatus.BAD_REQUEST;
+            case DAILY_USAGE_LIMIT_EXCEEDED -> HttpStatus.TOO_MANY_REQUESTS;
             default -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
 

@@ -12,12 +12,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
@@ -27,9 +24,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import org.springframework.core.io.ByteArrayResource;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -358,7 +352,8 @@ public class PythonAiService implements AiService {
      *
      * [동작 방식]
      * Python /extract/document 에 파일을 multipart로 전달합니다.
-     * PDF는 pypdf, 이미지는 GPT-4o Vision으로 텍스트를 추출합니다.
+     * STT와 동일하게 JDK HttpClient + 수동 multipart body 구성을 사용합니다.
+     * RestTemplate의 FormHttpMessageConverter는 FastAPI multipart와 호환 문제가 있어 사용하지 않습니다.
      */
     @Override
     public String extractDocumentText(String filename, byte[] fileBytes, String contentType) {
@@ -366,33 +361,60 @@ public class PythonAiService implements AiService {
         log.debug("[Python AI] 문서 텍스트 추출 요청: filename={}, size={}", filename, fileBytes.length);
 
         try {
-            ByteArrayResource resource = new ByteArrayResource(fileBytes) {
-                @Override
-                public String getFilename() {
-                    return filename;
-                }
-            };
+            String boundary = "----AiInterviewDocBoundary" + java.util.UUID.randomUUID().toString().replace("-", "");
+            byte[] multipartBody = buildDocumentMultipartBody(boundary, filename, contentType, fileBytes);
 
-            HttpHeaders fileHeaders = new HttpHeaders();
-            fileHeaders.setContentType(MediaType.parseMediaType(contentType));
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofSeconds(120))
+                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(multipartBody))
+                    .build();
 
-            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("file", new HttpEntity<>(resource, fileHeaders));
+            HttpResponse<String> response = httpClient.send(
+                    request,
+                    HttpResponse.BodyHandlers.ofString(java.nio.charset.StandardCharsets.UTF_8)
+            );
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                log.error("[Python AI] 문서 추출 응답 오류 — status={}, body={}", response.statusCode(), response.body());
+                throw new AiServiceException("AI 서버 문서 추출 HTTP 오류: " + response.statusCode(), null);
+            }
 
-            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
-            DocumentExtractResponse response = restTemplate.postForObject(url, requestEntity, DocumentExtractResponse.class);
-
-            if (response == null || response.extractedText() == null) {
+            DocumentExtractResponse parsed = objectMapper.readValue(response.body(), DocumentExtractResponse.class);
+            if (parsed == null || parsed.extractedText() == null) {
                 throw new AiServiceException("AI 서버 문서 추출 응답이 비어있습니다.", null);
             }
-            return response.extractedText();
-        } catch (RestClientException e) {
+            return parsed.extractedText();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AiServiceException("문서 추출 요청이 인터럽트되었습니다.", e);
+        } catch (Exception e) {
             log.error("[Python AI] 문서 텍스트 추출 실패", e);
             throw new AiServiceException("AI 서버 문서 추출 실패: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * 문서 추출용 multipart/form-data 본문을 직접 구성합니다.
+     * 필드명 "file"은 Python /extract/document 엔드포인트와 일치해야 합니다.
+     */
+    private byte[] buildDocumentMultipartBody(String boundary, String filename, String contentType, byte[] fileBytes) {
+        String safeFilename = filename != null ? filename.replaceAll("[\\r\\n\"]", "_") : "document";
+        String head = "--" + boundary + "\r\n"
+                + "Content-Disposition: form-data; name=\"file\"; filename=\"" + safeFilename + "\"\r\n"
+                + "Content-Type: " + contentType + "\r\n\r\n";
+        String tail = "\r\n--" + boundary + "--\r\n";
+
+        byte[] headBytes = head.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] tailBytes = tail.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] result = new byte[headBytes.length + fileBytes.length + tailBytes.length];
+
+        System.arraycopy(headBytes, 0, result, 0, headBytes.length);
+        System.arraycopy(fileBytes, 0, result, headBytes.length, fileBytes.length);
+        System.arraycopy(tailBytes, 0, result, headBytes.length + fileBytes.length, tailBytes.length);
+        return result;
     }
 
     /**

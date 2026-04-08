@@ -58,10 +58,11 @@ public class LearningController {
     @PostMapping("/subjects/{id}/problems/generate")
     public ResponseEntity<ApiResponse<List<LearningProblemDto>>> generateProblems(
             @PathVariable Long id,
-            @Valid @RequestBody LearningGenerateRequestDto request) {
+            @Valid @RequestBody LearningGenerateRequestDto request,
+            @AuthenticationPrincipal UserDetails userDetails) {
 
         return ResponseEntity.ok(ApiResponse.success(
-                learningService.generateProblems(id, request)
+                learningService.generateProblems(id, request, userDetails.getUsername())
         ));
     }
 

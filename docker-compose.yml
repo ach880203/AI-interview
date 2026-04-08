@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   # ── MariaDB ───────────────────────────────────────────────────
   mariadb:
@@ -32,16 +30,12 @@ services:
     ports:
       - "8001:8000"   # 외부 8001 → 컨테이너 8000 (ChromaDB 기본 포트)
     volumes:
-      - chroma_data:/chroma/chroma
+      # 최신 Chroma 공식 이미지는 실제 저장 경로로 /data 를 사용합니다.
+      # 예전 경로(/chroma/chroma)로 두면 컨테이너는 떠도 데이터가 기대한 위치에 남지 않을 수 있습니다.
+      - chroma_data:/data
     environment:
       # 익명 텔레메트리 비활성화 (프라이버시)
       ANONYMIZED_TELEMETRY: "false"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
-      start_period: 10s
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   # ── Python AI 서버 ────────────────────────────────────────────
   ai-server:
@@ -53,8 +47,6 @@ services:
     ports:
       - "8000:8000"
     environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      MODEL_NAME: ${MODEL_NAME:-gpt-4o}
       # ChromaDB 연결 설정 — 컨테이너명으로 접근
       CHROMA_HOST: chromadb
       CHROMA_PORT: 8000
@@ -62,7 +54,9 @@ services:
       - ./ai-server/.env
     depends_on:
       chromadb:
-        condition: service_healthy
+        # chromadb/chroma:latest 이미지에는 curl 이 없어 healthcheck 기반 대기가 자주 깨집니다.
+        # 여기서는 컨테이너 시작 완료까지만 기다리고, 실제 API 응답은 애플리케이션 레벨에서 확인합니다.
+        condition: service_started
 
   # ── Spring Boot 백엔드 ────────────────────────────────────────
   backend:
@@ -80,8 +74,6 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-1234}
       # AI 서버 — 컨테이너 내부에서 ai-server 서비스명으로 접근
       AI_SERVER_URL: http://ai-server:8000
-      # JWT 시크릿 — 반드시 .env 파일에 강한 값으로 설정
-      JWT_SECRET: ${JWT_SECRET}
       # 운영 프로파일 활성화 (ddl-auto=validate, SQL 로그 비활성화)
       SPRING_PROFILES_ACTIVE: prod
       # CORS 허용 오리진 — 프론트엔드 도메인으로 설정

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import * as profileApi from '../../api/profile';
+import ContentViewModal from '../../components/profile/ContentViewModal';
 
 /**
  * 자기소개서 관리 페이지입니다.
@@ -19,6 +20,7 @@ export default function CoverLetterPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [viewingCoverLetter, setViewingCoverLetter] = useState(null);
 
   /**
    * 페이지 진입 시 자기소개서 목록을 조회합니다.
@@ -167,6 +169,15 @@ export default function CoverLetterPage() {
 
   return (
     <div className="min-h-screen bg-mentor-bg px-4 py-10">
+      {viewingCoverLetter && (
+        <ContentViewModal
+          title={viewingCoverLetter.title}
+          content={viewingCoverLetter.content}
+          originalFileName={viewingCoverLetter.originalFileName}
+          fileUrl={viewingCoverLetter.fileUrl}
+          onClose={() => setViewingCoverLetter(null)}
+        />
+      )}
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
         <section className="rounded-2xl bg-mentor-surface p-6 shadow-[var(--shadow-card)]">
           <div className="mb-6">
@@ -311,9 +322,34 @@ export default function CoverLetterPage() {
                     </div>
                   </div>
 
-                  <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-mentor-muted">
-                    {coverLetter.content || '내용이 없는 자기소개서입니다.'}
-                  </p>
+                  {coverLetter.originalFileName && (
+                    <div className="mt-3 flex items-center gap-2 rounded-lg border border-mentor-border bg-mentor-bg px-3 py-2">
+                      <svg className="h-4 w-4 shrink-0 text-mentor-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                      </svg>
+                      <span className="truncate text-xs text-mentor-text">{coverLetter.originalFileName}</span>
+                    </div>
+                  )}
+
+                  {coverLetter.content ? (
+                    <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-mentor-muted">
+                      {coverLetter.content}
+                    </p>
+                  ) : (
+                    <p className="mt-3 text-sm text-mentor-muted">
+                      {coverLetter.originalFileName ? '파일 텍스트 추출 중 오류가 발생했습니다.' : '내용이 없는 자기소개서입니다.'}
+                    </p>
+                  )}
+
+                  {coverLetter.content && (
+                    <button
+                      type="button"
+                      onClick={() => setViewingCoverLetter(coverLetter)}
+                      className="mt-3 rounded-lg border border-mentor-border px-3 py-1.5 text-xs font-medium text-mentor-primary transition hover:bg-mentor-accent"
+                    >
+                      내용 전체 보기
+                    </button>
+                  )}
                 </article>
               ))}
             </div>

@@ -80,6 +80,16 @@ export default function AppRouter() {
   );
 
   /**
+   * 홈페이지 첫 진입인지 먼저 확인합니다.
+   *
+   * 왜 이렇게 했는지:
+   * - 인트로 영상은 홈페이지 진입 경험에만 직접 연결됩니다.
+   * - 다른 페이지까지 뒤에서 먼저 렌더링하면 영상 재생과 초기 렌더링이 겹쳐
+   *   브라우저 메인 스레드가 바빠질 수 있습니다.
+   */
+  const isHomeEntryPath = window.location.pathname === '/';
+
+  /**
    * 인트로 영상 종료 처리
    * IntroVideo 컴포넌트의 onComplete 콜백으로 전달됩니다.
    * - sessionStorage에 완료 기록 저장 (같은 세션 내 재방문 시 스킵)
@@ -90,13 +100,21 @@ export default function AppRouter() {
     setShowIntro(false);
   }
 
+  /**
+   * 인트로 재생 중에는 홈페이지 라우터를 뒤에서 같이 마운트하지 않습니다.
+   *
+   * 주의:
+   * - HomePage는 초기 애니메이션과 관찰자(IntersectionObserver) 설정이 많아서
+   *   영상과 동시에 마운트되면 끊김 원인이 될 수 있습니다.
+   * - 따라서 "/" 첫 진입일 때만 인트로를 단독으로 먼저 렌더링합니다.
+   */
+  if (showIntro && isHomeEntryPath) {
+    return <IntroVideo onComplete={handleIntroComplete} />;
+  }
+
   return (
     <>
-      {/* 인트로 영상 오버레이 — 처음 접속 시에만 표시 (z-[9999] 최상단) */}
-      {showIntro && (
-        <IntroVideo onComplete={handleIntroComplete} />
-      )}
-
+      {/* 인트로가 끝난 뒤 실제 라우터를 마운트합니다. */}
       <BrowserRouter>
         <ErrorBoundary>
           <Suspense fallback={<PageLoader />}>

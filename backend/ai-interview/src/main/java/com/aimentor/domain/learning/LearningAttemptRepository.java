@@ -69,4 +69,11 @@ public interface LearningAttemptRepository extends JpaRepository<LearningAttempt
             @Param("userId") Long userId,
             @Param("sessionKey") String sessionKey
     );
+
+    /** 오늘 기록된 고유 sessionKey 수 (일일 사용 제한 체크용) */
+    @Query("SELECT COUNT(DISTINCT a.sessionKey) FROM LearningAttemptEntity a WHERE a.user.id = :userId AND a.createdAt >= :startOfDay")
+    int countDistinctSessionKeyByUserIdSince(@Param("userId") Long userId, @Param("startOfDay") java.time.LocalDateTime startOfDay);
+
+    /** sessionKey가 이미 기록됐는지 확인 (같은 세션 재시도 허용용) */
+    boolean existsByUserIdAndSessionKey(Long userId, String sessionKey);
 }

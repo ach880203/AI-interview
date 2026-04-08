@@ -21,6 +21,7 @@ export default function JobPostingPage() {
   });
   const [selectedFile, setSelectedFile] = useState(null);
   const [editingId, setEditingId] = useState(null);
+  const [expandedIds, setExpandedIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [urlInput, setUrlInput] = useState('');
@@ -52,6 +53,15 @@ export default function JobPostingPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function toggleExpand(id) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   /**
@@ -413,7 +423,9 @@ export default function JobPostingPage() {
             />
           ) : (
             <div className="space-y-4">
-              {jobPostings.map((jobPosting) => (
+              {jobPostings.map((jobPosting) => {
+                const isExpanded = expandedIds.has(jobPosting.id);
+                return (
                 <article key={jobPosting.id} className="rounded-2xl border border-mentor-border p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
@@ -457,40 +469,57 @@ export default function JobPostingPage() {
                     </div>
                   </div>
 
-                  {/* 공고 내용 — 섹션 헤더([주요업무] 등)를 강조 표시합니다 */}
-                  <div className="mt-4 space-y-3 text-sm leading-6">
-                    {jobPosting.description
-                      ? renderDescription(jobPosting.description)
-                      : <p className="text-mentor-muted">설명이 없는 채용공고입니다.</p>}
-                  </div>
+                  {/* 아코디언 — 상세 정보 */}
+                  {isExpanded && (
+                    <>
+                      {/* 공고 내용 — 섹션 헤더([주요업무] 등)를 강조 표시합니다 */}
+                      <div className="mt-4 space-y-3 text-sm leading-6">
+                        {jobPosting.description
+                          ? renderDescription(jobPosting.description)
+                          : <p className="text-mentor-muted">설명이 없는 채용공고입니다.</p>}
+                      </div>
 
-                  {jobPosting.fileUrl && (
-                    <a
-                      href={jobPosting.fileUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-4 inline-flex text-sm font-medium text-mentor-primary hover:text-mentor-primary-dark"
+                      {jobPosting.fileUrl && (
+                        <a
+                          href={jobPosting.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-4 inline-flex text-sm font-medium text-mentor-primary hover:text-mentor-primary-dark"
+                        >
+                          첨부 파일 보기
+                        </a>
+                      )}
+
+                      {jobPosting.sourceUrl && (
+                        <div className="mt-4 flex items-center gap-2 rounded-lg border border-mentor-border bg-mentor-bg px-3 py-2">
+                          <span className="shrink-0 text-xs font-medium text-mentor-muted">출처 URL</span>
+                          <a
+                            href={jobPosting.sourceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="min-w-0 flex-1 truncate text-xs text-mentor-primary hover:text-mentor-primary-dark hover:underline"
+                            title={jobPosting.sourceUrl}
+                          >
+                            {jobPosting.sourceUrl}
+                          </a>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* 펼치기/접기 버튼 */}
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(jobPosting.id)}
+                      className="text-xs text-mentor-muted hover:text-mentor-primary transition"
                     >
-                      첨부 파일 보기
-                    </a>
-                  )}
-
-                  {jobPosting.sourceUrl && (
-                    <div className="mt-4 flex items-center gap-2 rounded-lg border border-mentor-border bg-mentor-bg px-3 py-2">
-                      <span className="shrink-0 text-xs font-medium text-mentor-muted">출처 URL</span>
-                      <a
-                        href={jobPosting.sourceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="min-w-0 flex-1 truncate text-xs text-mentor-primary hover:text-mentor-primary-dark hover:underline"
-                        title={jobPosting.sourceUrl}
-                      >
-                        {jobPosting.sourceUrl}
-                      </a>
-                    </div>
-                  )}
+                      {isExpanded ? '접기 ▲' : '펼치기 ▼'}
+                    </button>
+                  </div>
                 </article>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>

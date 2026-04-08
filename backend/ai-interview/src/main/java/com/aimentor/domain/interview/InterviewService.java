@@ -9,6 +9,7 @@ import com.aimentor.domain.profile.jobposting.JobPostingEntity;
 import com.aimentor.domain.profile.jobposting.JobPostingRepository;
 import com.aimentor.domain.profile.resume.ResumeEntity;
 import com.aimentor.domain.profile.resume.ResumeRepository;
+import com.aimentor.domain.subscription.UsageLimitService;
 import com.aimentor.domain.user.UserEntity;
 import com.aimentor.domain.user.UserRepository;
 import com.aimentor.external.ai.AiService;
@@ -66,6 +67,7 @@ public class InterviewService {
     private final JobPostingRepository jobPostingRepository;
     private final AiService aiService;
     private final SpeechService speechService;
+    private final UsageLimitService usageLimitService;
 
     // ──────────────────────────────────────────────────────
     // 1. 세션 시작
@@ -91,6 +93,7 @@ public class InterviewService {
     @Transactional
     public SessionStartResponseDto startSession(String email, SessionStartRequestDto request) {
         UserEntity user = getUser(email);
+        usageLimitService.checkInterviewUsage(user.getId());
         String positionTitle = loadPositionTitle(request.jobPostingId(), user.getId());
 
         InterviewSessionEntity session = InterviewSessionEntity.builder()

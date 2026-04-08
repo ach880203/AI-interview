@@ -35,12 +35,17 @@ public class CoverLetterEntity extends BaseTimeEntity {
     @Column(name = "file_url")
     private String fileUrl;
 
+    /** 사용자가 업로드한 원본 파일명 (nullable) */
+    @Column(name = "original_file_name", length = 500)
+    private String originalFileName;
+
     public void update(String title, String content) {
         this.title = title;
         this.content = content;
     }
 
-    public void updateFileUrl(String fileUrl) {
+    public void updateFileUrl(String fileUrl, String originalFileName) {
         this.fileUrl = fileUrl;
+        this.originalFileName = originalFileName;
     }
 }

@@ -37,14 +37,19 @@ public class ResumeEntity extends BaseTimeEntity {
     @Column(name = "file_url")
     private String fileUrl;
 
+    /** 사용자가 업로드한 원본 파일명 (nullable) */
+    @Column(name = "original_file_name", length = 500)
+    private String originalFileName;
+
     /** 제목/내용 수정 */
     public void update(String title, String content) {
         this.title = title;
         this.content = content;
     }
 
-    /** 파일 URL 업데이트 (파일 업로드/재업로드 시) */
-    public void updateFileUrl(String fileUrl) {
+    /** 파일 URL 및 원본 파일명 업데이트 (파일 업로드/재업로드 시) */
+    public void updateFileUrl(String fileUrl, String originalFileName) {
         this.fileUrl = fileUrl;
+        this.originalFileName = originalFileName;
     }
 }

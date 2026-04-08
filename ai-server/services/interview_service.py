@@ -2,6 +2,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import re
 from typing import List, Optional
 
 from fastapi import HTTPException
@@ -146,6 +147,47 @@ def _normalize_question_text(question: str | None) -> str:
     if not question:
         return ""
     return " ".join(question.lower().split())
+
+
+def _coerce_score(value: object, default: int, field_name: str) -> int:
+    """
+    AI가 점수 필드를 숫자 대신 "80점", "약 70" 같은 문자열로 줄 때도
+    서버가 500으로 죽지 않고 기본값으로 복구하도록 안전하게 정규화합니다.
+
+    [주의]
+    면접 종료 API는 피드백 저장까지 한 트랜잭션으로 묶여 있어 여기서 예외가 나면
+    세션 완료 처리 자체가 롤백됩니다. 따라서 점수 파싱은 최대한 방어적으로 처리합니다.
+    """
+    if value is None:
+        return default
+
+    if isinstance(value, bool):
+        logger.warning("피드백 점수 필드 형식이 잘못되었습니다. field=%s value=%s", field_name, value)
+        return default
+
+    if isinstance(value, (int, float)):
+        return max(0, min(100, int(round(value))))
+
+    if isinstance(value, str):
+        stripped_value = value.strip()
+        if not stripped_value:
+            return default
+
+        matched_number = re.search(r"-?\d+(?:\.\d+)?", stripped_value)
+        if matched_number:
+            return max(0, min(100, int(round(float(matched_number.group(0))))))
+
+    logger.warning("피드백 점수 필드 파싱에 실패했습니다. field=%s value=%s", field_name, value)
+    return default
+
+
+def _coerce_str(value: object) -> str:
+    """AI가 문자열 필드를 dict로 반환할 때 읽기 좋은 문자열로 변환합니다."""
+    if isinstance(value, dict):
+        return "\n\n".join(f"{k}\n{v}" for k, v in value.items())
+    if value is None:
+        return ""
+    return str(value)
 
 
 def _build_asked_question_set(conversation_history: List[ConversationTurn]) -> set[str]:
@@ -441,7 +483,7 @@ async def generate_feedback(
                 {"role": "user", "content": human_prompt},
             ],
             temperature=0.3,
-            max_tokens=2000,
+            max_tokens=8000,
             response_format={"type": "json_object"},
         )
         raw = response.choices[0].message.content.strip()
@@ -451,14 +493,17 @@ async def generate_feedback(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"AI 피드백 생성 실패: {e}")
 
-    logic_score = int(data.get("logicScore", 70))
-    relevance_score = int(data.get("relevanceScore", 70))
-    specificity_score = int(data.get("specificityScore", 70))
-    communication_score = int(data.get("communicationScore", 70))
-    professionalism_score = int(data.get("professionalismScore", 70))
-    overall_score = int(data.get("overallScore", round(
-        (logic_score + relevance_score + specificity_score + communication_score + professionalism_score) / 5
-    )))
+    # 점수 필드는 AI 응답 변동성이 있어서 문자열/빈 값이 섞여도 기본값으로 복구합니다.
+    logic_score = _coerce_score(data.get("logicScore"), 70, "logicScore")
+    relevance_score = _coerce_score(data.get("relevanceScore"), 70, "relevanceScore")
+    specificity_score = _coerce_score(data.get("specificityScore"), 70, "specificityScore")
+    communication_score = _coerce_score(data.get("communicationScore"), 70, "communicationScore")
+    professionalism_score = _coerce_score(data.get("professionalismScore"), 70, "professionalismScore")
+    overall_score = _coerce_score(
+        data.get("overallScore"),
+        round((logic_score + relevance_score + specificity_score + communication_score + professionalism_score) / 5),
+        "overallScore",
+    )
 
     return InterviewFeedbackResponse(
         logicScore=logic_score,
@@ -470,11 +515,11 @@ async def generate_feedback(
         strengths=data.get("strengths", ""),
         weakPoints=data.get("weakPoints", ""),
         improvements=data.get("improvements", ""),
-        questionFeedbacks=data.get("questionFeedbacks", ""),
-        attitudeScore=int(data.get("attitudeScore", 70)),
+        questionFeedbacks=_coerce_str(data.get("questionFeedbacks", "")),
+        attitudeScore=_coerce_score(data.get("attitudeScore"), 70, "attitudeScore"),
         attitudeFeedback=data.get("attitudeFeedback", ""),
-        starScore=int(data.get("starScore", 60)),
-        consistencyScore=int(data.get("consistencyScore", 80)),
+        starScore=_coerce_score(data.get("starScore"), 60, "starScore"),
+        consistencyScore=_coerce_score(data.get("consistencyScore"), 80, "consistencyScore"),
         consistencyFeedback=data.get("consistencyFeedback", ""),
         recommendedAnswer=data.get("recommendedAnswer", ""),
         timingAnalysis=data.get("timingAnalysis", ""),

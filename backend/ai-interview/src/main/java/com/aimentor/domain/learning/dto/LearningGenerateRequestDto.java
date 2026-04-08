@@ -11,10 +11,12 @@ package com.aimentor.domain.learning.dto;
  * - count       : 생성할 문제 수
  * - type        : 문제 유형 (MULTIPLE / SHORT / MIX)
  * - userAccuracy: 사용자의 현재 정답률 (AI가 난이도 조절에 활용, nullable)
+ * - sessionKey  : 프론트엔드 학습 세션 키 (일일 사용 제한 체크에 활용, nullable)
  */
 public record LearningGenerateRequestDto(
         String difficulty,
         Integer count,
         String type,
-        Integer userAccuracy
+        Integer userAccuracy,
+        String sessionKey
 ) {}

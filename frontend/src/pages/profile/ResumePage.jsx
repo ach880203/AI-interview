@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import * as profileApi from '../../api/profile';
+import ContentViewModal from '../../components/profile/ContentViewModal';
 
 /**
  * 이력서 관리 페이지입니다.
@@ -19,6 +20,7 @@ export default function ResumePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [viewingResume, setViewingResume] = useState(null);
 
   /**
    * 페이지 첫 진입 시 내 이력서 목록을 조회합니다.
@@ -184,8 +186,16 @@ export default function ResumePage() {
   }
 
   return (
-    /* 전체 배경 — mentor-bg */
     <div className="min-h-screen bg-mentor-bg px-4 py-10">
+      {viewingResume && (
+        <ContentViewModal
+          title={viewingResume.title}
+          content={viewingResume.content}
+          originalFileName={viewingResume.originalFileName}
+          fileUrl={viewingResume.fileUrl}
+          onClose={() => setViewingResume(null)}
+        />
+      )}
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
         {/* 폼 섹션 — mentor-surface 카드 */}
         <section className="rounded-2xl bg-mentor-surface p-6 shadow-[var(--shadow-card)]">
@@ -339,19 +349,33 @@ export default function ResumePage() {
                     </div>
                   </div>
 
-                  <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-mentor-muted">
-                    {resume.content || '내용이 없는 이력서입니다.'}
-                  </p>
+                  {resume.originalFileName && (
+                    <div className="mt-3 flex items-center gap-2 rounded-lg border border-mentor-border bg-mentor-bg px-3 py-2">
+                      <svg className="h-4 w-4 shrink-0 text-mentor-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                      </svg>
+                      <span className="truncate text-xs text-mentor-text">{resume.originalFileName}</span>
+                    </div>
+                  )}
 
-                  {resume.fileUrl && (
-                    <a
-                      href={resume.fileUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-4 inline-flex text-sm font-medium text-mentor-primary hover:text-mentor-primary-dark"
+                  {resume.content ? (
+                    <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-mentor-muted">
+                      {resume.content}
+                    </p>
+                  ) : (
+                    <p className="mt-3 text-sm text-mentor-muted">
+                      {resume.originalFileName ? '파일 텍스트 추출 중 오류가 발생했습니다.' : '내용이 없는 이력서입니다.'}
+                    </p>
+                  )}
+
+                  {resume.content && (
+                    <button
+                      type="button"
+                      onClick={() => setViewingResume(resume)}
+                      className="mt-3 rounded-lg border border-mentor-border px-3 py-1.5 text-xs font-medium text-mentor-primary transition hover:bg-mentor-accent"
                     >
-                      첨부 파일 보기
-                    </a>
+                      내용 전체 보기
+                    </button>
                   )}
                 </article>
               ))}

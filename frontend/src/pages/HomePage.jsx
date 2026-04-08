@@ -129,7 +129,7 @@ export default function HomePage() {
             {/* 우측 — 앱 미리보기 카드 */}
             <div className="animate-fade-in-right delay-200 relative flex flex-col gap-4">
               {/* 메인 카드: 면접 질문 */}
-              <div className="animate-float relative rounded-3xl border border-mentor-border bg-white p-6 shadow-xl shadow-mentor-primary/8">
+              <div className="animate-float relative rounded-3xl border border-mentor-border bg-white p-6 shadow-xl shadow-mentor-primary/8 ">
                 {/* 헤더 */}
                 <div className="mb-5 flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -158,7 +158,7 @@ export default function HomePage() {
               </div>
 
               {/* 우측 상단 플로팅: 문서 배지 */}
-              <div className="animate-float-alt delay-300 absolute -top-4 -right-4 flex items-center gap-2 rounded-2xl border border-mentor-border bg-white px-4 py-2.5 shadow-lg">
+              <div className="animate-float-alt delay-300 absolute -top-4 -right-4 flex items-center gap-2 rounded-2xl border border-mentor-border bg-white px-4 py-2.5 shadow-lg ">
                 <span className="text-base">📄</span>
                 <div>
                   <p className="text-[11px] font-semibold text-mentor-text">이력서 연동됨</p>
@@ -167,7 +167,7 @@ export default function HomePage() {
               </div>
 
               {/* 피드백 요약 카드 */}
-              <div className="animate-float delay-500 rounded-3xl border border-mentor-border bg-white p-5 shadow-lg shadow-mentor-primary/5">
+              <div className="animate-float delay-500 rounded-3xl border border-mentor-border bg-white p-5 shadow-lg shadow-mentor-primary/5 ">
                 <div className="mb-3 flex items-center justify-between">
                   <p className="text-sm font-semibold text-mentor-text">AI 피드백 요약</p>
                   <span className="text-xs text-mentor-muted">방금 전</span>
@@ -201,7 +201,7 @@ export default function HomePage() {
               </div>
 
               {/* 좌측 하단 플로팅: 과목 추천 */}
-              <div className="animate-float-alt delay-700 absolute -bottom-3 -left-6 flex items-center gap-2 rounded-2xl border border-mentor-border bg-white px-4 py-2.5 shadow-lg">
+              <div className="animate-float-alt delay-700 absolute -bottom-3 -left-6 flex items-center gap-2 rounded-2xl border border-mentor-border bg-white px-4 py-2.5 shadow-lg ">
                 <span className="text-base">🎯</span>
                 <div>
                   <p className="text-[11px] font-semibold text-mentor-text">약점 감지</p>
@@ -307,7 +307,7 @@ export default function HomePage() {
                   AI 면접 경험
                 </h2>
                 <p className="mb-6 leading-relaxed text-slate-400">
-                  GPT-4o가 이력서 내용을 기반으로 깊이 있는 후속 질문을 이어가고,
+                  AI가 이력서 내용을 기반으로 깊이 있는 후속 질문을 이어가고,
                   <br />
                   답변이 끝나면 강점·약점·개선 포인트를 상세히 분석합니다.
                 </p>
@@ -325,7 +325,7 @@ export default function HomePage() {
               <div className="flex flex-col items-center gap-4 lg:items-end">
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-8 py-6 text-center backdrop-blur">
                   <p className="mb-1 text-sm text-slate-400">월 구독</p>
-                  <p className="text-4xl font-bold text-white">₩9,900</p>
+                  <p className="text-4xl font-bold text-white">₩19,500</p>
                   <p className="mt-1 text-xs text-slate-500">/ 월</p>
                 </div>
                 <Link

@@ -88,7 +88,7 @@ export default function SubscriptionPage() {
           {SUBSCRIPTION_PLANS.map((plan) => (
             <article
               key={plan.key}
-              className={`relative rounded-[28px] border p-6 shadow-sm transition ${
+              className={`relative flex flex-col rounded-[28px] border p-6 shadow-sm transition ${
                 plan.recommended
                   ? 'border-mentor-primary bg-mentor-surface shadow-[var(--shadow-card-hover)]'
                   : 'border-mentor-border bg-mentor-surface hover:-translate-y-1 hover:shadow-[var(--shadow-card-hover)]'
@@ -101,33 +101,70 @@ export default function SubscriptionPage() {
               )}
 
               <p className="text-sm font-semibold text-mentor-muted">{plan.name}</p>
-              <h2 className="mt-2 text-3xl font-bold text-mentor-text">
-                {formatPrice(plan.finalPrice)}
-              </h2>
-              <p className="mt-2 text-sm text-mentor-muted">{plan.periodText}</p>
+              <p className="mt-1 text-xs text-mentor-muted">{plan.periodText}</p>
 
-              <div className="mt-6 rounded-2xl bg-mentor-bg px-4 py-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-mentor-muted">
-                  혜택
-                </p>
-                <p className="mt-2 text-sm font-semibold text-mentor-text">{plan.highlight}</p>
-                <p className="mt-2 text-sm text-mentor-primary">{plan.discountText}</p>
-                <p className="mt-1 text-xs text-mentor-muted">
-                  정가 {formatPrice(plan.basePrice)}
-                </p>
+              {/* 가격 영역 — 정가(취소선) 좌상단, 할인가 우하단 대각선 */}
+              <div className="mt-4">
+                {plan.discountRate > 0 ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-red-400 line-through decoration-red-400">
+                        {formatPrice(plan.basePrice)}
+                      </span>
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-600">
+                        -{plan.discountRate}%
+                      </span>
+                    </div>
+                    <div className="mt-1 flex justify-end">
+                      <span className="text-2xl font-bold text-mentor-text">
+                        {formatPrice(plan.finalPrice)}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <span className="text-2xl font-bold text-mentor-text">
+                    {formatPrice(plan.finalPrice)}
+                  </span>
+                )}
               </div>
+
+              {/* 가격 상세 내역 */}
+              <div className="mt-5 rounded-2xl bg-mentor-bg px-4 py-4 space-y-2 text-sm">
+                {plan.discountRate > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-mentor-muted">할인</span>
+                    <span className="font-semibold text-red-500">-{plan.discountRate}%</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-mentor-muted">정가</span>
+                  <span className="text-mentor-text">{formatPrice(plan.basePrice)}</span>
+                </div>
+                {plan.discountRate > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-mentor-muted">할인가</span>
+                    <span className="font-semibold text-mentor-primary">{formatPrice(plan.finalPrice)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-mentor-muted">부가세 (10%)</span>
+                  <span className="text-mentor-text">{formatPrice(plan.vatAmount)}</span>
+                </div>
+                <div className="flex justify-between border-t border-mentor-border pt-2">
+                  <span className="font-semibold text-mentor-text">총 결제금액</span>
+                  <span className="font-bold text-mentor-primary">{formatPrice(plan.paymentAmount)}</span>
+                </div>
+              </div>
+
+              <p className="mt-3 text-xs leading-5 text-mentor-muted">{plan.highlight}</p>
 
               <button
                 type="button"
                 disabled
-                className="mt-6 w-full rounded-2xl bg-mentor-bg px-4 py-3 text-sm font-semibold text-mentor-muted cursor-not-allowed"
+                className="mt-auto pt-5 w-full rounded-2xl bg-mentor-bg px-4 py-3 text-sm font-semibold text-mentor-muted cursor-not-allowed"
               >
                 준비 중
               </button>
-
-              <p className="mt-3 text-center text-xs text-mentor-muted">
-                카드결제 수수료 10% 부가
-              </p>
             </article>
           ))}
         </section>

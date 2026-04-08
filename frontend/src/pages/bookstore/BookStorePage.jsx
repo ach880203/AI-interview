@@ -190,10 +190,6 @@ export default function BookStorePage() {
               <h1 className="mt-3 text-3xl font-bold leading-tight text-mentor-text">
                 학습 과목과 연결된 실전 서적을 바로 고르세요.
               </h1>
-              <p className="mt-4 max-w-2xl text-sm leading-6 text-mentor-muted">
-                교재형 목록이 아니라 과목별 준비 흐름을 중심으로 도서를 묶었습니다.
-                학습과 면접 준비가 끊기지 않도록 장바구니와 주문 흐름까지 바로 이어집니다.
-              </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   to="/cart"

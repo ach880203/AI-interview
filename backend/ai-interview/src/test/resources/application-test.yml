@@ -5,6 +5,10 @@ spring:
     username: sa
     password:
     driver-class-name: org.h2.Driver
+    hikari:
+      # 메인 설정의 MariaDB 전용 "SET NAMES" 구문은 H2가 이해하지 못하므로
+      # 테스트 프로필에서는 비워서 컨텍스트가 정상 기동되게 합니다.
+      connection-init-sql:
 
   jpa:
     hibernate:

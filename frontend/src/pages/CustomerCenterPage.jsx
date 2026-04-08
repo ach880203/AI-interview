@@ -349,7 +349,8 @@ export default function CustomerCenterPage() {
             <section className="rounded-3xl bg-mentor-surface p-6 shadow-[var(--shadow-card)]">
               <h2 className="text-xl font-bold text-mentor-text">공개 문의</h2>
               <p className="mt-1 text-sm text-mentor-muted">
-                다른 사용자의 공개 문의와 답변을 확인할 수 있습니다. 도움이 됐다면 '도움됨' 버튼을 눌러주세요. 도움됨 20개 이상이면 FAQ 승격 대상이 됩니다.
+                다른 사용자의 공개 문의와 답변을 확인할 수 있습니다. 도움이 됐다면 '도움됨' 버튼을 눌러주세요. 도움됨 20개 이상이면 FAQ 승격 대상이 됩니다.</p>
+              <p className="mt-1 text-sm text-mentor-muted">내 문의 등록 시 공개로 선택한 문의만 이 목록에 표시되며 욕설, 개인정보 등 부적절한 내용이 포함된 문의는 관리자에 의해 삭제될 수 있습니다.
               </p>
 
               <div className="mt-6 space-y-4">

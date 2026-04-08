@@ -122,8 +122,28 @@ export default function SubscriptionCheckoutPage() {
                 <SummaryRow label="결제 수단" value={SUBSCRIPTION_PAYMENT_METHOD.label} />
               </div>
 
-              <div className="mt-5 border-t border-white/10 pt-5">
-                <div className="flex items-center justify-between">
+              <div className="mt-5 border-t border-white/10 pt-5 space-y-2">
+                {selectedPlan.discountRate > 0 && (
+                  <>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-white/60">정가</span>
+                      <span className="text-white/60 line-through">{formatPrice(selectedPlan.basePrice)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-white/60">할인 ({selectedPlan.discountRate}%)</span>
+                      <span className="text-red-300">-{formatPrice(selectedPlan.basePrice - selectedPlan.supplyAmount)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-white/60">할인가</span>
+                      <span className="text-white/80">{formatPrice(selectedPlan.supplyAmount)}</span>
+                    </div>
+                  </>
+                )}
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-white/60">부가세 (10%)</span>
+                  <span className="text-white/80">{formatPrice(selectedPlan.vatAmount)}</span>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-white/10">
                   <span className="text-sm font-semibold text-white/70">결제 예정 금액</span>
                   <span className="text-2xl font-bold">{formatPrice(selectedPlan.paymentAmount)}</span>
                 </div>

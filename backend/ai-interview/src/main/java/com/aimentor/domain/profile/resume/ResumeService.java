@@ -61,6 +61,7 @@ public class ResumeService {
     @Transactional
     public ResumeResponseDto createResume(ResumeCreateRequestDto request, MultipartFile file, String email) {
         UserEntity user = getUser(email);
+        String originalFileName = (file != null && !file.isEmpty()) ? file.getOriginalFilename() : null;
         String fileUrl = s3StorageService.uploadFile(file, "resumes");
         String content = extractContentFromFile(file, request.content());
 
@@ -69,6 +70,7 @@ public class ResumeService {
                 .title(request.title())
                 .content(content)
                 .fileUrl(fileUrl)
+                .originalFileName(originalFileName)
                 .build();
 
         return ResumeResponseDto.from(resumeRepository.save(resume));
@@ -94,7 +96,10 @@ public class ResumeService {
 
         if (file != null && !file.isEmpty()) {
             s3StorageService.deleteFile(resume.getFileUrl());
-            resume.updateFileUrl(s3StorageService.uploadFile(file, "resumes"));
+            resume.updateFileUrl(
+                s3StorageService.uploadFile(file, "resumes"),
+                file.getOriginalFilename()
+            );
         }
 
         return ResumeResponseDto.from(resume);

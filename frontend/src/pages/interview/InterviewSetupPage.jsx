@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import * as interviewApi from '../../api/interview';
 import * as profileApi from '../../api/profile';
 import AiWorkStatusCard from '../../components/common/AiWorkStatusCard';
+import UsageLimitBanner from '../../components/common/UsageLimitBanner';
 import Button from '../../components/ui/Button';
 
 /**
@@ -35,6 +36,7 @@ export default function InterviewSetupPage() {
 
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState('');
+  const [usageLimitExceeded, setUsageLimitExceeded] = useState(false);
 
   /**
    * 문서 목록 조회
@@ -99,6 +101,7 @@ export default function InterviewSetupPage() {
   const handleStart = async () => {
     setStarting(true);
     setError('');
+    setUsageLimitExceeded(false);
 
     try {
       const requestBody = {
@@ -120,13 +123,17 @@ export default function InterviewSetupPage() {
         },
       });
     } catch (requestError) {
-      const message =
-        requestError.code === 'ECONNABORTED'
-          ? '면접 질문 생성 시간이 길어지고 있습니다. 잠시 후 다시 시도해주세요.'
-          :
-        requestError.response?.data?.error?.message ??
-        '면접 세션 생성에 실패했습니다.';
-      setError(message);
+      const errorCode = requestError.response?.data?.error?.code;
+      if (errorCode === 'DAILY_USAGE_LIMIT_EXCEEDED') {
+        setUsageLimitExceeded(true);
+      } else {
+        const message =
+          requestError.code === 'ECONNABORTED'
+            ? '면접 질문 생성 시간이 길어지고 있습니다. 잠시 후 다시 시도해주세요.'
+            : requestError.response?.data?.error?.message ??
+              '면접 세션 생성에 실패했습니다.';
+        setError(message);
+      }
     } finally {
       setStarting(false);
     }
@@ -213,6 +220,10 @@ export default function InterviewSetupPage() {
                 </div>
                 <p className="text-xs text-mentor-muted">선택하지 않으면 AI가 자동으로 질문 유형을 선택합니다.</p>
               </div>
+
+              {usageLimitExceeded && (
+                <UsageLimitBanner featureName="면접" />
+              )}
 
               {error && (
                 <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">

@@ -80,8 +80,8 @@ export default function SubscriptionLandingPage() {
           <p className="text-sm font-semibold text-white/80">구독 서비스</p>
           <h1 className="mt-3 text-3xl font-bold">준비 기간에 맞는 구독 기간을 선택해 주세요.</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-white/80">
-            구독은 AI 면접과 학습 기능을 묶는 전용 서비스입니다. 도서 구매와 분리된 흐름으로 정리해
-            필요한 기간만 고른 뒤 바로 학습과 면접으로 이어갈 수 있게 구성했습니다.
+            구독은 AI 면접과 학습 기능을 필요한 기간만큼 고른 뒤 결제하는 방식으로 운영됩니다. <br/>
+            현재 준비 기간에 맞는 요금제를 선택하면, 바로 구독이 시작되고 면접과 학습 기능을 이용할 수 있습니다.
           </p>
         </section>
 
@@ -90,9 +90,6 @@ export default function SubscriptionLandingPage() {
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <article className="rounded-[28px] border border-mentor-border bg-mentor-surface p-6 shadow-sm">
             <p className="text-sm font-semibold text-mentor-primary">현재 구독 상태</p>
-            <h2 className="mt-2 text-xl font-bold text-mentor-text">
-              지금 화면에 보여 줄 대표 구독을 먼저 확인합니다.
-            </h2>
 
             {loadingSubscriptionSummary ? (
               <div className="mt-6 flex items-center justify-center py-12">
@@ -106,9 +103,6 @@ export default function SubscriptionLandingPage() {
               <div className="mt-6 rounded-[28px] border border-mentor-border bg-mentor-bg p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-mentor-muted">
-                      대표 구독
-                    </p>
                     <p className="mt-2 text-xl font-bold text-mentor-text">
                       {subscriptionSummary.planName}
                     </p>
@@ -149,7 +143,7 @@ export default function SubscriptionLandingPage() {
 
           <aside className="space-y-4">
             <section className="rounded-[28px] bg-mentor-surface p-6 shadow-sm">
-              <h2 className="text-lg font-bold text-mentor-text">구독 결제 기준</h2>
+              <h2 className="text-lg font-bold text-mentor-text">결제 선택</h2>
               <div className="mt-5 rounded-2xl border border-mentor-primary bg-mentor-accent/60 px-4 py-4">
                 <p className="text-sm font-semibold text-mentor-text">
                   {SUBSCRIPTION_PAYMENT_METHOD.label}
@@ -159,16 +153,14 @@ export default function SubscriptionLandingPage() {
                 </p>
               </div>
               <p className="mt-4 text-sm leading-6 text-mentor-muted">
-                결제가 끝나면 현재 구독 상태가 즉시 갱신되고, 학습과 면접 화면에서 바로 이용 상태를
-                확인할 수 있게 이어집니다.
+                결제가 끝나면 구독 상태가 즉시 갱신되고, 학습과 면접 기능을 바로 이용할 수 있습니다.
               </p>
             </section>
 
             <section className="rounded-[28px] bg-amber-50 p-6 text-amber-800 shadow-sm">
               <h2 className="text-lg font-bold">궁금한 점이 있나요?</h2>
               <p className="mt-3 text-sm leading-6">
-                구독과 도서 구매는 서로 다른 결제 흐름입니다. 결제 전에 궁금한 점이 있다면 고객센터에서
-                바로 확인할 수 있습니다.
+                결제 전에 궁금한 점이 있다면 고객센터에서 바로 확인할 수 있습니다.
               </p>
               <div className="mt-5 flex flex-wrap gap-2">
                 <Link
@@ -176,12 +168,6 @@ export default function SubscriptionLandingPage() {
                   className="rounded-full border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-700 transition hover:border-amber-400"
                 >
                   고객센터로 이동
-                </Link>
-                <Link
-                  to="/books"
-                  className="rounded-full bg-mentor-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-mentor-primary-dark"
-                >
-                  도서 보러 가기
                 </Link>
               </div>
             </section>
@@ -192,7 +178,7 @@ export default function SubscriptionLandingPage() {
           {SUBSCRIPTION_PLAN_OPTIONS.map((plan) => (
             <article
               key={plan.key}
-              className={`relative rounded-[28px] border p-6 shadow-sm transition ${
+              className={`relative flex flex-col rounded-[28px] border p-6 shadow-sm transition ${
                 plan.recommended
                   ? 'border-mentor-primary bg-mentor-surface shadow-[var(--shadow-card-hover)]'
                   : 'border-mentor-border bg-mentor-surface hover:-translate-y-1 hover:shadow-[var(--shadow-card-hover)]'
@@ -205,23 +191,67 @@ export default function SubscriptionLandingPage() {
               )}
 
               <p className="text-sm font-semibold text-mentor-muted">{plan.name}</p>
-              <h2 className="mt-2 text-3xl font-bold text-mentor-text">{formatPrice(plan.paymentAmount)}</h2>
-              <p className="mt-2 text-sm text-mentor-muted">{plan.durationText}</p>
+              <p className="mt-1 text-xs text-mentor-muted">{plan.durationText}</p>
 
-              <div className="mt-6 rounded-2xl bg-mentor-bg px-4 py-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-mentor-muted">
-                  추천 포인트
-                </p>
-                <p className="mt-2 text-sm font-semibold text-mentor-text">{plan.highlight}</p>
-                <p className="mt-2 text-sm leading-6 text-mentor-muted">{plan.description}</p>
-                <p className="mt-3 text-sm font-semibold text-mentor-primary">{plan.discountText}</p>
-                <p className="mt-1 text-xs text-mentor-muted">정가 {formatPrice(plan.basePrice)}</p>
+              {/* 가격 영역 — 정가(취소선) 좌상단, 할인가 우하단 대각선 */}
+              <div className="mt-4">
+                {plan.discountRate > 0 ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-red-400 line-through decoration-red-400">
+                        {formatPrice(plan.basePrice)}
+                      </span>
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-600">
+                        -{plan.discountRate}%
+                      </span>
+                    </div>
+                    <div className="mt-1 flex justify-end">
+                      <span className="text-2xl font-bold text-mentor-text">
+                        {formatPrice(plan.supplyAmount)}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <span className="text-2xl font-bold text-mentor-text">
+                    {formatPrice(plan.supplyAmount)}
+                  </span>
+                )}
               </div>
+
+              {/* 가격 상세 내역 */}
+              <div className="mt-5 rounded-2xl bg-mentor-bg px-4 py-4 space-y-2 text-sm">
+                {plan.discountRate > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-mentor-muted">할인</span>
+                    <span className="font-semibold text-red-500">-{plan.discountRate}%</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-mentor-muted">정가</span>
+                  <span className="text-mentor-text">{formatPrice(plan.basePrice)}</span>
+                </div>
+                {plan.discountRate > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-mentor-muted">할인가</span>
+                    <span className="font-semibold text-mentor-primary">{formatPrice(plan.supplyAmount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-mentor-muted">부가세 (10%)</span>
+                  <span className="text-mentor-text">{formatPrice(plan.vatAmount)}</span>
+                </div>
+                <div className="flex justify-between border-t border-mentor-border pt-2">
+                  <span className="font-semibold text-mentor-text">총 결제금액</span>
+                  <span className="font-bold text-mentor-primary">{formatPrice(plan.paymentAmount)}</span>
+                </div>
+              </div>
+
+              <p className="mt-4 text-sm leading-6 text-mentor-muted">{plan.description}</p>
 
               <button
                 type="button"
                 onClick={() => handleSelectPlan(plan)}
-                className={`mt-6 w-full rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+                className={`mt-auto pt-5 w-full rounded-2xl px-4 py-3 text-sm font-semibold transition ${
                   plan.recommended
                     ? 'bg-mentor-primary text-white hover:bg-mentor-primary-dark'
                     : 'bg-mentor-bg text-mentor-text hover:bg-mentor-accent'

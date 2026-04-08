@@ -13,10 +13,10 @@ import java.util.Arrays;
  * 프런트에서 잘못된 금액이나 기간을 보내더라도 서버가 기준값으로 저장할 수 있습니다.
  */
 public enum SubscriptionPlan {
-    DAILY("daily", "하루", 1, 1200, "가볍게 체험"),
-    WEEKLY("weekly", "1주", 7, 8400, "단기 집중 준비"),
-    MONTHLY("monthly", "1개월", 30, 28800, "가장 균형 잡힌 선택"),
-    YEARLY("yearly", "1년", 365, 219000, "장기 취업 준비 전용");
+    DAILY("daily", "하루", 1, 1100, "가볍게 체험"),
+    WEEKLY("weekly", "1주", 7, 6160, "단기 집중 준비"),
+    MONTHLY("monthly", "1개월", 30, 21450, "가장 균형 잡힌 선택"),
+    YEARLY("yearly", "1년", 365, 200750, "장기 취업 준비 전용");
 
     private final String key;
     private final String displayName;

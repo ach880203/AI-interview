@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import * as learningApi from '../../api/learning';
+import UsageLimitBanner from '../../components/common/UsageLimitBanner';
 import AiWorkStatusCard from '../../components/common/AiWorkStatusCard';
 import Button from '../../components/ui/Button';
 
@@ -46,6 +47,7 @@ export default function LearningPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
+  const [usageLimitExceeded, setUsageLimitExceeded] = useState(false);
   const [recommendation, setRecommendation] = useState(null);
 
   useEffect(() => {
@@ -99,12 +101,16 @@ export default function LearningPage() {
 
     setGenerating(true);
     setError('');
+    setUsageLimitExceeded(false);
+
+    const sessionKey = createLearningSessionKey();
 
     try {
       const { data } = await learningApi.generateProblems(selectedId, {
         difficulty,
         count,
         type,
+        sessionKey,
       });
 
       const problems = data?.data;
@@ -114,7 +120,6 @@ export default function LearningPage() {
       }
 
       const subjectName = subjects.find((subject) => subject.id === selectedId)?.name ?? deepLearningPreset?.subjectName ?? '';
-      const sessionKey = createLearningSessionKey();
 
       navigate(`/learning/session?sessionKey=${sessionKey}`, {
         state: {
@@ -129,10 +134,15 @@ export default function LearningPage() {
         },
       });
     } catch (requestError) {
-      const message =
-        requestError.response?.data?.error?.message ??
-        '문제 생성 중 오류가 발생했습니다.';
-      setError(message);
+      const errorCode = requestError.response?.data?.error?.code;
+      if (errorCode === 'DAILY_USAGE_LIMIT_EXCEEDED') {
+        setUsageLimitExceeded(true);
+      } else {
+        const message =
+          requestError.response?.data?.error?.message ??
+          '문제 생성 중 오류가 발생했습니다.';
+        setError(message);
+      }
     } finally {
       setGenerating(false);
     }
@@ -269,6 +279,10 @@ export default function LearningPage() {
             ))}
           </div>
         </section>
+
+        {usageLimitExceeded && (
+          <UsageLimitBanner featureName="학습" />
+        )}
 
         {error && (
           <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
