@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   # 운영 DB는 EC2 내부 네트워크에서만 접근하도록 포트를 외부에 열지 않습니다.
   mariadb:

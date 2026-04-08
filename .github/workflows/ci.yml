@@ -106,6 +106,7 @@ jobs:
           KAKAO_REDIRECT_URI: https://example.com/auth/kakao/callback
         run: |
           cp ai-server/.env.example ai-server/.env
+          cp deploy/ec2/.env.example deploy/ec2/.env
           docker compose -f docker-compose.yml config > /dev/null
           docker compose -f deploy/ec2/docker-compose.prod.yml config > /dev/null
 
