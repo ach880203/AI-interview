@@ -148,6 +148,61 @@ jobs:
         if: ${{ steps.detect-config.outputs.ready == 'true' }}
         run: |
           set -euo pipefail
+
+          wait_for_ssm_command() {
+            local command_id="$1"
+            local instance_id="$2"
+            local max_attempts="${3:-120}"
+            local sleep_seconds="${4:-10}"
+            local attempt=1
+            local status=""
+
+            # aws ssm wait command-executed 기본 waiter는 오래 걸리는 pull/compose 배포에서
+            # InProgress 상태로 먼저 타임아웃 나기 쉬워 직접 polling 하면서 상태를 추적합니다.
+            while [ "${attempt}" -le "${max_attempts}" ]; do
+              status="$(aws ssm get-command-invocation \
+                --region "${AWS_REGION}" \
+                --command-id "${command_id}" \
+                --instance-id "${instance_id}" \
+                --query 'Status' \
+                --output text 2>/dev/null || true)"
+
+              case "${status}" in
+                Success)
+                  aws ssm get-command-invocation \
+                    --region "${AWS_REGION}" \
+                    --command-id "${command_id}" \
+                    --instance-id "${instance_id}"
+                  return 0
+                  ;;
+                Failed|TimedOut|Cancelled|Cancelling)
+                  aws ssm get-command-invocation \
+                    --region "${AWS_REGION}" \
+                    --command-id "${command_id}" \
+                    --instance-id "${instance_id}" || true
+                  return 1
+                  ;;
+                ""|Pending|InProgress|Delayed)
+                  echo "SSM 명령 대기 중 (${attempt}/${max_attempts}) - 상태: ${status:-Pending}"
+                  sleep "${sleep_seconds}"
+                  ;;
+                *)
+                  echo "알 수 없는 SSM 상태입니다: ${status}"
+                  sleep "${sleep_seconds}"
+                  ;;
+              esac
+
+              attempt=$((attempt + 1))
+            done
+
+            echo "SSM 명령 대기 시간이 초과되었습니다."
+            aws ssm get-command-invocation \
+              --region "${AWS_REGION}" \
+              --command-id "${command_id}" \
+              --instance-id "${instance_id}" || true
+            return 1
+          }
+
           python - <<'PY'
           import base64
           import json
@@ -191,20 +246,67 @@ jobs:
             --query 'Command.CommandId' \
             --output text)
 
-          aws ssm wait command-executed \
-            --region "${AWS_REGION}" \
-            --command-id "${COMMAND_ID}" \
-            --instance-id "${EC2_INSTANCE_ID}"
-
-          aws ssm get-command-invocation \
-            --region "${AWS_REGION}" \
-            --command-id "${COMMAND_ID}" \
-            --instance-id "${EC2_INSTANCE_ID}"
+          wait_for_ssm_command "${COMMAND_ID}" "${EC2_INSTANCE_ID}" 60 5
 
       - name: run-remote-deploy-with-ssm
         if: ${{ steps.detect-config.outputs.ready == 'true' }}
         run: |
           set -euo pipefail
+
+          wait_for_ssm_command() {
+            local command_id="$1"
+            local instance_id="$2"
+            local max_attempts="${3:-120}"
+            local sleep_seconds="${4:-10}"
+            local attempt=1
+            local status=""
+
+            # ECR pull, 컨테이너 재기동, health 대기까지 묶이면 2~3분을 쉽게 넘길 수 있어
+            # 기본 waiter 대신 장시간 polling으로 배포 진행 상황을 기다립니다.
+            while [ "${attempt}" -le "${max_attempts}" ]; do
+              status="$(aws ssm get-command-invocation \
+                --region "${AWS_REGION}" \
+                --command-id "${command_id}" \
+                --instance-id "${instance_id}" \
+                --query 'Status' \
+                --output text 2>/dev/null || true)"
+
+              case "${status}" in
+                Success)
+                  aws ssm get-command-invocation \
+                    --region "${AWS_REGION}" \
+                    --command-id "${command_id}" \
+                    --instance-id "${instance_id}"
+                  return 0
+                  ;;
+                Failed|TimedOut|Cancelled|Cancelling)
+                  aws ssm get-command-invocation \
+                    --region "${AWS_REGION}" \
+                    --command-id "${command_id}" \
+                    --instance-id "${instance_id}" || true
+                  return 1
+                  ;;
+                ""|Pending|InProgress|Delayed)
+                  echo "SSM 명령 대기 중 (${attempt}/${max_attempts}) - 상태: ${status:-Pending}"
+                  sleep "${sleep_seconds}"
+                  ;;
+                *)
+                  echo "알 수 없는 SSM 상태입니다: ${status}"
+                  sleep "${sleep_seconds}"
+                  ;;
+              esac
+
+              attempt=$((attempt + 1))
+            done
+
+            echo "SSM 명령 대기 시간이 초과되었습니다."
+            aws ssm get-command-invocation \
+              --region "${AWS_REGION}" \
+              --command-id "${command_id}" \
+              --instance-id "${instance_id}" || true
+            return 1
+          }
+
           python - <<'PY'
           import json
           import os
@@ -237,20 +339,67 @@ jobs:
             --query 'Command.CommandId' \
             --output text)
 
-          aws ssm wait command-executed \
-            --region "${AWS_REGION}" \
-            --command-id "${COMMAND_ID}" \
-            --instance-id "${EC2_INSTANCE_ID}"
-
-          aws ssm get-command-invocation \
-            --region "${AWS_REGION}" \
-            --command-id "${COMMAND_ID}" \
-            --instance-id "${EC2_INSTANCE_ID}"
+          wait_for_ssm_command "${COMMAND_ID}" "${EC2_INSTANCE_ID}" 120 10
 
       - name: verify-ai-and-backend-health-with-ssm
         if: ${{ steps.detect-config.outputs.ready == 'true' }}
         run: |
           set -euo pipefail
+
+          wait_for_ssm_command() {
+            local command_id="$1"
+            local instance_id="$2"
+            local max_attempts="${3:-120}"
+            local sleep_seconds="${4:-10}"
+            local attempt=1
+            local status=""
+
+            # health 확인은 내부 재시도 로직까지 포함돼 실행 시간이 길어질 수 있어
+            # polling으로 실제 완료/실패 상태를 끝까지 추적합니다.
+            while [ "${attempt}" -le "${max_attempts}" ]; do
+              status="$(aws ssm get-command-invocation \
+                --region "${AWS_REGION}" \
+                --command-id "${command_id}" \
+                --instance-id "${instance_id}" \
+                --query 'Status' \
+                --output text 2>/dev/null || true)"
+
+              case "${status}" in
+                Success)
+                  aws ssm get-command-invocation \
+                    --region "${AWS_REGION}" \
+                    --command-id "${command_id}" \
+                    --instance-id "${instance_id}"
+                  return 0
+                  ;;
+                Failed|TimedOut|Cancelled|Cancelling)
+                  aws ssm get-command-invocation \
+                    --region "${AWS_REGION}" \
+                    --command-id "${command_id}" \
+                    --instance-id "${instance_id}" || true
+                  return 1
+                  ;;
+                ""|Pending|InProgress|Delayed)
+                  echo "SSM 명령 대기 중 (${attempt}/${max_attempts}) - 상태: ${status:-Pending}"
+                  sleep "${sleep_seconds}"
+                  ;;
+                *)
+                  echo "알 수 없는 SSM 상태입니다: ${status}"
+                  sleep "${sleep_seconds}"
+                  ;;
+              esac
+
+              attempt=$((attempt + 1))
+            done
+
+            echo "SSM 명령 대기 시간이 초과되었습니다."
+            aws ssm get-command-invocation \
+              --region "${AWS_REGION}" \
+              --command-id "${command_id}" \
+              --instance-id "${instance_id}" || true
+            return 1
+          }
+
           python - <<'PY'
           import json
           import os
@@ -296,12 +445,4 @@ jobs:
             --query 'Command.CommandId' \
             --output text)
 
-          aws ssm wait command-executed \
-            --region "${AWS_REGION}" \
-            --command-id "${COMMAND_ID}" \
-            --instance-id "${EC2_INSTANCE_ID}"
-
-          aws ssm get-command-invocation \
-            --region "${AWS_REGION}" \
-            --command-id "${COMMAND_ID}" \
-            --instance-id "${EC2_INSTANCE_ID}"
+          wait_for_ssm_command "${COMMAND_ID}" "${EC2_INSTANCE_ID}" 120 10
