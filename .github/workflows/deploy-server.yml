@@ -100,6 +100,35 @@ jobs:
           runtime_path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
           PY
 
+      - name: validate-runtime-env-required-values
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          env_path = Path("deploy/ec2/.env.runtime")
+          values = {}
+
+          for raw_line in env_path.read_text(encoding="utf-8-sig").splitlines():
+              line = raw_line.strip()
+              if not line or line.startswith("#") or "=" not in line:
+                  continue
+              key, value = line.split("=", 1)
+              values[key.strip()] = value.strip()
+
+          missing_keys = []
+          for required_key in ["DB_PASSWORD", "JWT_SECRET", "OPENAI_API_KEY"]:
+              value = values.get(required_key, "")
+              # 예시 파일의 placeholder(sk-...)가 그대로 들어가면 배포는 성공해도 AI 호출이 100% 실패하므로
+              # GitHub Actions 단계에서 미리 막아 실제 장애를 조기에 드러냅니다.
+              if not value or value == "change_me" or value == "sk-...":
+                  missing_keys.append(required_key)
+
+          if missing_keys:
+              joined = ", ".join(missing_keys)
+              raise SystemExit(f"EC2_APP_ENV_FILE 필수 값이 비어 있거나 예시 값 그대로입니다: {joined}")
+          PY
+
       - name: configure-aws-oidc
         if: ${{ steps.detect-config.outputs.ready == 'true' && vars.AWS_ROLE_TO_ASSUME != '' }}
         uses: aws-actions/configure-aws-credentials@v4
@@ -205,6 +234,65 @@ jobs:
             --document-name "AWS-RunShellScript" \
             --comment "Run application deploy" \
             --parameters file://ssm-deploy-params.json \
+            --query 'Command.CommandId' \
+            --output text)
+
+          aws ssm wait command-executed \
+            --region "${AWS_REGION}" \
+            --command-id "${COMMAND_ID}" \
+            --instance-id "${EC2_INSTANCE_ID}"
+
+          aws ssm get-command-invocation \
+            --region "${AWS_REGION}" \
+            --command-id "${COMMAND_ID}" \
+            --instance-id "${EC2_INSTANCE_ID}"
+
+      - name: verify-ai-and-backend-health-with-ssm
+        if: ${{ steps.detect-config.outputs.ready == 'true' }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          deploy_dir = os.environ["EC2_DEPLOY_PATH"]
+
+          # 배포 직후에는 컨테이너가 막 올라오고 있을 수 있어 재시도 구간을 둡니다.
+          # 특히 AI 서버는 OPENAI 키가 빠져도 프로세스는 떠 있을 수 있으므로
+          # health 응답의 apiKeyConfigured 값까지 함께 검사해야 실제 연동 가능 여부를 판단할 수 있습니다.
+          params = {
+              "commands": [
+                  "set -euo pipefail",
+                  f"DEPLOY_DIR='{deploy_dir}'",
+                  "ENV_FILE=\"$DEPLOY_DIR/.env\"",
+                  "COMPOSE_FILE=\"$DEPLOY_DIR/docker-compose.prod.yml\"",
+                  "docker compose --env-file \"$ENV_FILE\" -f \"$COMPOSE_FILE\" ps",
+                  "for attempt in $(seq 1 30); do "
+                  "docker exec ai-interview-ai python -c \"import json, urllib.request, sys; data=json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)); print(json.dumps(data, ensure_ascii=False)); sys.exit(0 if data.get('status') == 'ok' and data.get('apiKeyConfigured') else 1)\" "
+                  "&& break || { echo \"AI 서버 상태 확인 재시도 ${attempt}/30\"; sleep 5; }; "
+                  "if [ \"$attempt\" -eq 30 ]; then echo 'AI 서버 health 확인 실패'; docker logs --tail=200 ai-interview-ai || true; exit 1; fi; "
+                  "done",
+                  "for attempt in $(seq 1 30); do "
+                  "python3 -c \"import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8080/api/health', timeout=5).read().decode('utf-8'))\" "
+                  "&& break || { echo \"백엔드 상태 확인 재시도 ${attempt}/30\"; sleep 5; }; "
+                  "if [ \"$attempt\" -eq 30 ]; then echo '백엔드 health 확인 실패'; docker logs --tail=200 ai-interview-backend || true; exit 1; fi; "
+                  "done",
+              ]
+          }
+
+          Path("ssm-verify-params.json").write_text(
+              json.dumps(params, ensure_ascii=False, indent=2),
+              encoding="utf-8",
+          )
+          PY
+
+          COMMAND_ID=$(aws ssm send-command \
+            --region "${AWS_REGION}" \
+            --instance-ids "${EC2_INSTANCE_ID}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Verify backend and AI health" \
+            --parameters file://ssm-verify-params.json \
             --query 'Command.CommandId' \
             --output text)
 

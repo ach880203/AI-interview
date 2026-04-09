@@ -45,6 +45,14 @@ services:
       CHROMA_HOST: chromadb
       CHROMA_PORT: 8000
       PYTHONUNBUFFERED: "1"
+    healthcheck:
+      # AI 서버가 포트만 열렸는지보다 실제 헬스 엔드포인트 응답이 가능한지를 확인해야
+      # 백엔드가 너무 일찍 붙어서 첫 호출부터 실패하는 상황을 줄일 수 있습니다.
+      test: ["CMD", "python", "-c", "import json, urllib.request, sys; data=json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)); sys.exit(0 if data.get('status') == 'ok' else 1)"]
+      start_period: 20s
+      interval: 10s
+      timeout: 5s
+      retries: 10
     depends_on:
       - chromadb
 
@@ -74,7 +82,7 @@ services:
       mariadb:
         condition: service_healthy
       ai-server:
-        condition: service_started
+        condition: service_healthy
 
 volumes:
   mariadb_data:
