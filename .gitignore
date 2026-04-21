@@ -55,6 +55,8 @@ Thumbs.db
 # 로컬 보조 폴더
 .claude/
 uploads/
+docs/
+study/
 
 # 로컬에서만 사용하는 보조 파일
 dashboard-storage.json
